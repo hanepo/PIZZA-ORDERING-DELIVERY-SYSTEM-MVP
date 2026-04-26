@@ -1,122 +1,93 @@
 const express = require('express');
-const db      = require('../config/db');
+const store   = require('../data/store');
 const { verifyToken, requireAdmin, requireRider } = require('../middleware/auth');
 const router  = express.Router();
 
-// GET /api/riders — list all riders (admin)
-router.get('/', verifyToken, requireAdmin, async (req, res) => {
-  try {
-    const [riders] = await db.execute(
-      `SELECT r.*, u.email,
-         (SELECT COUNT(*) FROM orders o WHERE o.rider_id = r.id AND o.status = 'out_for_delivery') AS active_orders
-       FROM riders r
-       LEFT JOIN users u ON r.user_id = u.id
-       ORDER BY r.status ASC`
-    );
-    res.json({ success: true, data: riders });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
+// GET /api/riders/my-orders — rider gets their assigned orders (must be before /:id)
+router.get('/my-orders', verifyToken, requireRider, (req, res) => {
+  const rider = store.riders.find(r => r.user_id === req.user.id);
+  if (!rider) return res.json({ success: true, data: [], riderId: null });
+
+  const orders = store.orders
+    .filter(o => o.rider_id === rider.id && ['out_for_delivery','preparing'].includes(o.status))
+    .map(o => ({ ...o, items: store.orderItems.filter(i => i.order_id === o.id) }));
+
+  res.json({ success: true, data: orders, riderId: rider.id });
 });
 
 // GET /api/riders/available — for assigning to orders
-router.get('/available', verifyToken, requireAdmin, async (req, res) => {
-  try {
-    const [riders] = await db.execute(
-      "SELECT id, name, phone, status FROM riders WHERE status = 'available' ORDER BY name"
-    );
-    res.json({ success: true, data: riders });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
+router.get('/available', verifyToken, requireAdmin, (req, res) => {
+  const available = store.riders
+    .filter(r => r.status === 'available')
+    .map(({ id, name, phone, status }) => ({ id, name, phone, status }));
+  res.json({ success: true, data: available });
+});
+
+// GET /api/riders — list all riders (admin)
+router.get('/', verifyToken, requireAdmin, (req, res) => {
+  const result = store.riders.map(r => ({
+    ...r,
+    active_orders: store.orders.filter(o => o.rider_id === r.id && o.status === 'out_for_delivery').length
+  }));
+  res.json({ success: true, data: result });
 });
 
 // POST /api/riders — add rider (admin)
-router.post('/', verifyToken, requireAdmin, async (req, res) => {
-  try {
-    const { name, phone, user_id } = req.body;
-    if (!name) return res.status(400).json({ success: false, message: 'Name required.' });
+router.post('/', verifyToken, requireAdmin, (req, res) => {
+  const { name, phone, user_id } = req.body;
+  if (!name) return res.status(400).json({ success: false, message: 'Name required.' });
 
-    const [result] = await db.execute(
-      'INSERT INTO riders (name, phone, user_id) VALUES (?, ?, ?)',
-      [name, phone || null, user_id || null]
-    );
-    res.status(201).json({ success: true, message: 'Rider added.', id: result.insertId });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
+  const newRider = {
+    id:                store.getNextRiderId(),
+    name,
+    phone:             phone || null,
+    status:            'available',
+    user_id:           user_id || null,
+    current_lat:       2.044200,
+    current_lng:       102.568810,
+    total_deliveries:  0,
+    email:             null
+  };
+  store.riders.push(newRider);
+  res.status(201).json({ success: true, message: 'Rider added.', id: newRider.id });
 });
 
 // PUT /api/riders/:id/status
-router.put('/:id/status', verifyToken, async (req, res) => {
-  try {
-    const { status } = req.body;
-    const valid = ['available', 'busy', 'offline'];
-    if (!valid.includes(status)) {
-      return res.status(400).json({ success: false, message: 'Invalid status.' });
-    }
-    await db.execute('UPDATE riders SET status = ? WHERE id = ?', [status, req.params.id]);
-    res.json({ success: true, message: 'Status updated.' });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
+router.put('/:id/status', verifyToken, (req, res) => {
+  const { status } = req.body;
+  if (!['available','busy','offline'].includes(status)) {
+    return res.status(400).json({ success: false, message: 'Invalid status.' });
   }
+  const rider = store.riders.find(r => r.id === parseInt(req.params.id));
+  if (!rider) return res.status(404).json({ success: false, message: 'Rider not found.' });
+  rider.status = status;
+  res.json({ success: true, message: 'Status updated.' });
 });
 
 // PUT /api/riders/:id/location — rider updates GPS
-router.put('/:id/location', verifyToken, async (req, res) => {
+router.put('/:id/location', verifyToken, (req, res) => {
   const io = req.app.get('io');
-  try {
-    const { lat, lng, order_id } = req.body;
-    await db.execute(
-      'UPDATE riders SET current_lat = ?, current_lng = ? WHERE id = ?',
-      [lat, lng, req.params.id]
-    );
+  const { lat, lng, order_id } = req.body;
+  const rider = store.riders.find(r => r.id === parseInt(req.params.id));
+  if (!rider) return res.status(404).json({ success: false, message: 'Rider not found.' });
 
-    // Broadcast location to order room
-    if (io && order_id) {
-      io.to(`order-${order_id}`).emit('rider-location', {
-        orderId: parseInt(order_id), lat: parseFloat(lat), lng: parseFloat(lng)
-      });
-    }
+  rider.current_lat = parseFloat(lat);
+  rider.current_lng = parseFloat(lng);
 
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
+  if (io && order_id) {
+    io.to(`order-${order_id}`).emit('rider-location', {
+      orderId: parseInt(order_id), lat: parseFloat(lat), lng: parseFloat(lng)
+    });
   }
-});
-
-// GET /api/riders/my-orders — rider gets their assigned orders
-router.get('/my-orders', verifyToken, requireRider, async (req, res) => {
-  try {
-    const [riderRow] = await db.execute('SELECT id FROM riders WHERE user_id = ?', [req.user.id]);
-    if (riderRow.length === 0) return res.json({ success: true, data: [] });
-
-    const [orders] = await db.execute(
-      `SELECT o.* FROM orders o
-       WHERE o.rider_id = ? AND o.status IN ('out_for_delivery','preparing')
-       ORDER BY o.created_at DESC`,
-      [riderRow[0].id]
-    );
-
-    for (const order of orders) {
-      const [items] = await db.execute('SELECT * FROM order_items WHERE order_id = ?', [order.id]);
-      order.items = items;
-    }
-
-    res.json({ success: true, data: orders, riderId: riderRow[0].id });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
+  res.json({ success: true });
 });
 
 // DELETE /api/riders/:id — admin
-router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
-  try {
-    await db.execute('DELETE FROM riders WHERE id = ?', [req.params.id]);
-    res.json({ success: true, message: 'Rider removed.' });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
+router.delete('/:id', verifyToken, requireAdmin, (req, res) => {
+  const idx = store.riders.findIndex(r => r.id === parseInt(req.params.id));
+  if (idx === -1) return res.status(404).json({ success: false, message: 'Rider not found.' });
+  store.riders.splice(idx, 1);
+  res.json({ success: true, message: 'Rider removed.' });
 });
 
 module.exports = router;

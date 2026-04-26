@@ -1,7 +1,7 @@
 const express  = require('express');
 const bcrypt   = require('bcryptjs');
 const jwt      = require('jsonwebtoken');
-const db       = require('../config/db');
+const store    = require('../data/store');
 const { verifyToken } = require('../middleware/auth');
 const router   = express.Router();
 
@@ -13,20 +13,23 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Name, email and password are required.' });
     }
 
-    const [existing] = await db.execute('SELECT id FROM users WHERE email = ?', [email]);
-    if (existing.length > 0) {
+    if (store.users.find(u => u.email === email)) {
       return res.status(409).json({ success: false, message: 'Email already registered.' });
     }
 
     const hashed = await bcrypt.hash(password, 10);
-    const [result] = await db.execute(
-      'INSERT INTO users (name, email, password, phone, address) VALUES (?, ?, ?, ?, ?)',
-      [name, email, hashed, phone || null, address || null]
-    );
+    const newUser = {
+      id: store.getNextUserId(),
+      name, email, password: hashed,
+      role: 'customer',
+      phone: phone || null,
+      address: address || null
+    };
+    store.users.push(newUser);
 
     const token = jwt.sign(
-      { id: result.insertId, email, role: 'customer', name },
-      process.env.JWT_SECRET,
+      { id: newUser.id, email, role: 'customer', name },
+      process.env.JWT_SECRET || 'pizza_demo_secret',
       { expiresIn: '7d' }
     );
 
@@ -34,7 +37,7 @@ router.post('/register', async (req, res) => {
       success: true,
       message: 'Account created successfully.',
       token,
-      user: { id: result.insertId, name, email, role: 'customer' }
+      user: { id: newUser.id, name, email, role: 'customer' }
     });
   } catch (err) {
     console.error('Register error:', err);
@@ -50,12 +53,11 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email and password are required.' });
     }
 
-    const [rows] = await db.execute('SELECT * FROM users WHERE email = ?', [email]);
-    if (rows.length === 0) {
+    const user = store.users.find(u => u.email === email);
+    if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid credentials.' });
     }
 
-    const user = rows[0];
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
       return res.status(401).json({ success: false, message: 'Invalid credentials.' });
@@ -63,7 +65,7 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, name: user.name },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || 'pizza_demo_secret',
       { expiresIn: '7d' }
     );
 
@@ -80,31 +82,22 @@ router.post('/login', async (req, res) => {
 });
 
 // GET /api/auth/me
-router.get('/me', verifyToken, async (req, res) => {
-  try {
-    const [rows] = await db.execute(
-      'SELECT id, name, email, role, phone, address, created_at FROM users WHERE id = ?',
-      [req.user.id]
-    );
-    if (rows.length === 0) return res.status(404).json({ success: false, message: 'User not found.' });
-    res.json({ success: true, user: rows[0] });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
+router.get('/me', verifyToken, (req, res) => {
+  const user = store.users.find(u => u.id === req.user.id);
+  if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+  const { password, ...safe } = user;
+  res.json({ success: true, user: safe });
 });
 
 // PUT /api/auth/profile
-router.put('/profile', verifyToken, async (req, res) => {
-  try {
-    const { name, phone, address } = req.body;
-    await db.execute(
-      'UPDATE users SET name = ?, phone = ?, address = ? WHERE id = ?',
-      [name, phone, address, req.user.id]
-    );
-    res.json({ success: true, message: 'Profile updated.' });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
+router.put('/profile', verifyToken, (req, res) => {
+  const user = store.users.find(u => u.id === req.user.id);
+  if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+  const { name, phone, address } = req.body;
+  if (name)    user.name    = name;
+  if (phone)   user.phone   = phone;
+  if (address) user.address = address;
+  res.json({ success: true, message: 'Profile updated.' });
 });
 
 module.exports = router;

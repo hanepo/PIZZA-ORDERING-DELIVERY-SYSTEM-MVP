@@ -1,118 +1,141 @@
 const express = require('express');
-const db      = require('../config/db');
+const store   = require('../data/store');
 const { verifyToken, requireAdmin } = require('../middleware/auth');
 const router  = express.Router();
 
 // GET /api/admin/stats — dashboard overview
-router.get('/stats', verifyToken, requireAdmin, async (req, res) => {
-  try {
-    const today = new Date().toISOString().split('T')[0];
+router.get('/stats', verifyToken, requireAdmin, (req, res) => {
+  const today = new Date().toDateString();
 
-    const [[totalOrders]]  = await db.execute("SELECT COUNT(*) AS count FROM orders WHERE DATE(created_at) = ?", [today]);
-    const [[totalRevenue]] = await db.execute("SELECT COALESCE(SUM(total_price),0) AS total FROM orders WHERE status = 'delivered' AND DATE(created_at) = ?", [today]);
-    const [[activeOrders]] = await db.execute("SELECT COUNT(*) AS count FROM orders WHERE status IN ('placed','preparing','out_for_delivery')");
-    const [[totalUsers]]   = await db.execute("SELECT COUNT(*) AS count FROM users WHERE role = 'customer'");
-    const [[availRiders]]  = await db.execute("SELECT COUNT(*) AS count FROM riders WHERE status = 'available'");
-    const [[allTimeRev]]   = await db.execute("SELECT COALESCE(SUM(total_price),0) AS total FROM orders WHERE status = 'delivered'");
+  const todayOrders   = store.orders.filter(o => new Date(o.created_at).toDateString() === today);
+  const todayRevenue  = todayOrders.filter(o => o.status === 'delivered').reduce((s, o) => s + o.total_price, 0);
+  const activeOrders  = store.orders.filter(o => ['placed','preparing','out_for_delivery'].includes(o.status)).length;
+  const totalCustomers= store.users.filter(u => u.role === 'customer').length;
+  const availRiders   = store.riders.filter(r => r.status === 'available').length;
+  const allTimeRev    = store.orders.filter(o => o.status === 'delivered').reduce((s, o) => s + o.total_price, 0);
 
-    // Recent orders (last 5)
-    const [recentOrders] = await db.execute(
-      `SELECT o.id, o.customer_name, o.total_price, o.status, o.created_at, o.payment_method,
-         COUNT(oi.id) AS item_count
-       FROM orders o
-       LEFT JOIN order_items oi ON o.id = oi.order_id
-       GROUP BY o.id
-       ORDER BY o.created_at DESC LIMIT 5`
-    );
+  const recentOrders = [...store.orders].reverse().slice(0, 5).map(o => ({
+    ...o,
+    item_count: store.orderItems.filter(i => i.order_id === o.id).length
+  }));
 
-    res.json({
-      success: true,
-      data: {
-        todayOrders:   totalOrders.count,
-        todayRevenue:  parseFloat(totalRevenue.total).toFixed(2),
-        activeOrders:  activeOrders.count,
-        totalCustomers:totalUsers.count,
-        availableRiders: availRiders.count,
-        allTimeRevenue:  parseFloat(allTimeRev.total).toFixed(2),
-        recentOrders
-      }
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
+  res.json({
+    success: true,
+    data: {
+      todayOrders:     todayOrders.length,
+      todayRevenue:    todayRevenue.toFixed(2),
+      activeOrders,
+      totalCustomers,
+      availableRiders: availRiders,
+      allTimeRevenue:  allTimeRev.toFixed(2),
+      recentOrders
+    }
+  });
 });
 
 // GET /api/admin/analytics — charts data
-router.get('/analytics', verifyToken, requireAdmin, async (req, res) => {
-  try {
-    // Best-selling pizzas
-    const [bestSelling] = await db.execute(
-      `SELECT oi.pizza_name, SUM(oi.quantity) AS total_sold, SUM(oi.quantity * oi.unit_price) AS revenue
-       FROM order_items oi
-       JOIN orders o ON oi.order_id = o.id
-       WHERE o.status = 'delivered'
-       GROUP BY oi.pizza_name
-       ORDER BY total_sold DESC LIMIT 5`
-    );
+router.get('/analytics', verifyToken, requireAdmin, (req, res) => {
+  const delivered = store.orders.filter(o => o.status === 'delivered');
 
-    // Orders by status
-    const [statusBreakdown] = await db.execute(
-      `SELECT status, COUNT(*) AS count FROM orders GROUP BY status`
-    );
-
-    // Revenue last 7 days
-    const [dailyRevenue] = await db.execute(
-      `SELECT DATE(created_at) AS date, SUM(total_price) AS revenue, COUNT(*) AS orders
-       FROM orders
-       WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) AND status != 'cancelled'
-       GROUP BY DATE(created_at)
-       ORDER BY date ASC`
-    );
-
-    // Peak hours
-    const [peakHours] = await db.execute(
-      `SELECT HOUR(created_at) AS hour, COUNT(*) AS orders
-       FROM orders
-       GROUP BY HOUR(created_at)
-       ORDER BY hour ASC`
-    );
-
-    res.json({
-      success: true,
-      data: { bestSelling, statusBreakdown, dailyRevenue, peakHours }
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
+  // Best-selling pizzas
+  const pizzaSales = {};
+  for (const item of store.orderItems) {
+    const order = store.orders.find(o => o.id === item.order_id);
+    if (order && order.status === 'delivered') {
+      if (!pizzaSales[item.pizza_name]) pizzaSales[item.pizza_name] = { pizza_name: item.pizza_name, total_sold: 0, revenue: 0 };
+      pizzaSales[item.pizza_name].total_sold += item.quantity;
+      pizzaSales[item.pizza_name].revenue   += item.quantity * item.unit_price;
+    }
   }
+  const bestSelling = Object.values(pizzaSales).sort((a, b) => b.total_sold - a.total_sold).slice(0, 5);
+
+  // Orders by status
+  const statusMap = {};
+  for (const o of store.orders) {
+    statusMap[o.status] = (statusMap[o.status] || 0) + 1;
+  }
+  const statusBreakdown = Object.entries(statusMap).map(([status, count]) => ({ status, count }));
+
+  // Revenue last 7 days
+  const days = {};
+  const cutoff = new Date(Date.now() - 7 * 24 * 3600000);
+  for (const o of store.orders) {
+    if (new Date(o.created_at) >= cutoff && o.status !== 'cancelled') {
+      const d = new Date(o.created_at).toISOString().split('T')[0];
+      if (!days[d]) days[d] = { date: d, revenue: 0, orders: 0 };
+      days[d].revenue += o.total_price;
+      days[d].orders++;
+    }
+  }
+  const dailyRevenue = Object.values(days).sort((a, b) => a.date.localeCompare(b.date));
+
+  // Peak hours
+  const hours = {};
+  for (const o of store.orders) {
+    const h = new Date(o.created_at).getHours();
+    hours[h] = (hours[h] || 0) + 1;
+  }
+  const peakHours = Object.entries(hours).map(([hour, orders]) => ({ hour: parseInt(hour), orders })).sort((a, b) => a.hour - b.hour);
+
+  res.json({ success: true, data: { bestSelling, statusBreakdown, dailyRevenue, peakHours } });
 });
 
 // GET /api/admin/orders — all orders with pagination
-router.get('/orders', verifyToken, requireAdmin, async (req, res) => {
-  try {
-    const { status, page = 1, limit = 20 } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-    let sql = `SELECT o.*, r.name AS rider_name FROM orders o LEFT JOIN riders r ON o.rider_id = r.id`;
-    const params = [];
+router.get('/orders', verifyToken, requireAdmin, (req, res) => {
+  const { status, page = 1, limit = 20 } = req.query;
+  let filtered = [...store.orders].reverse();
+  if (status && status !== 'all') filtered = filtered.filter(o => o.status === status);
 
-    if (status && status !== 'all') { sql += ' WHERE o.status = ?'; params.push(status); }
-    const limitInt  = parseInt(limit, 10);
-    const offsetInt = parseInt(offset, 10);
-    sql += ` ORDER BY o.created_at DESC LIMIT ${limitInt} OFFSET ${offsetInt}`;
+  const total   = filtered.length;
+  const pageInt = parseInt(page, 10);
+  const limInt  = parseInt(limit, 10);
+  const paged   = filtered.slice((pageInt - 1) * limInt, pageInt * limInt);
 
-    const [orders] = await db.execute(sql, params);
+  const result = paged.map(o => {
+    const rider = o.rider_id ? store.riders.find(r => r.id === o.rider_id) : null;
+    return { ...o, rider_name: rider ? rider.name : null, items: store.orderItems.filter(i => i.order_id === o.id) };
+  });
 
-    for (const order of orders) {
-      const [items] = await db.execute('SELECT * FROM order_items WHERE order_id = ?', [order.id]);
-      order.items = items;
-    }
+  res.json({ success: true, data: result, total, page: pageInt, pages: Math.ceil(total / limInt) });
+});
 
-    const [[{ total }]] = await db.execute('SELECT COUNT(*) AS total FROM orders' + (status && status !== 'all' ? ' WHERE status = ?' : ''), status && status !== 'all' ? [status] : []);
+// PATCH /api/admin/orders/:id/status
+router.patch('/orders/:id/status', verifyToken, requireAdmin, (req, res) => {
+  const io = req.app.get('io');
+  const order = store.orders.find(o => o.id === parseInt(req.params.id));
+  if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
 
-    res.json({ success: true, data: orders, total, page: parseInt(page), pages: Math.ceil(total / limit) });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
+  const { status } = req.body;
+  order.status = status;
+
+  if (io) {
+    io.to(`order-${req.params.id}`).emit('order-status-update', { orderId: order.id, status });
+    io.to('admin-room').emit('order-updated', { orderId: order.id, status });
   }
+
+  res.json({ success: true, message: 'Status updated.' });
+});
+
+// PATCH /api/admin/orders/:id/assign
+router.patch('/orders/:id/assign', verifyToken, requireAdmin, (req, res) => {
+  const io = req.app.get('io');
+  const order = store.orders.find(o => o.id === parseInt(req.params.id));
+  if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
+
+  const { rider_id } = req.body;
+  const rider = store.riders.find(r => r.id === parseInt(rider_id));
+  if (!rider) return res.status(404).json({ success: false, message: 'Rider not found.' });
+
+  order.rider_id   = rider.id;
+  order.status     = 'out_for_delivery';
+  rider.status     = 'busy';
+
+  if (io) {
+    io.to(`order-${req.params.id}`).emit('order-status-update', { orderId: order.id, status: 'out_for_delivery', message: '🛵 Rider is on the way!' });
+    io.to('admin-room').emit('order-updated', { orderId: order.id, status: 'out_for_delivery' });
+  }
+
+  res.json({ success: true, message: 'Rider assigned.' });
 });
 
 module.exports = router;

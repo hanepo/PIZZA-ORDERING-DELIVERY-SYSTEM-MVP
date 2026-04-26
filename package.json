@@ -1,0 +1,12 @@
+{
+  "name": "pizza-delivery-demo",
+  "version": "1.0.0",
+  "description": "Pizza Ordering & Delivery System – Demo (no database required)",
+  "scripts": {
+    "start": "cd server && node index.js",
+    "install-deps": "cd server && npm install"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
