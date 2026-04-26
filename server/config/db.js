@@ -1,9 +1,15 @@
 const mysql = require('mysql2');
 require('dotenv').config();
 
-// Railway provides MYSQL_URL, support both formats
+// Aiven/Railway provide MYSQL_URL, support both formats
 const poolConfig = process.env.MYSQL_URL
-  ? { uri: process.env.MYSQL_URL, waitForConnections: true, connectionLimit: 10, queueLimit: 0 }
+  ? {
+      uri: process.env.MYSQL_URL,
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+      ssl: { rejectUnauthorized: false }
+    }
   : {
       host:              process.env.DB_HOST     || 'localhost',
       user:              process.env.DB_USER     || 'root',
