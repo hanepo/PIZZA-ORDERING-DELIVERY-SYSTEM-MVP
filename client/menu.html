@@ -288,26 +288,39 @@
   if (urlP.get('cat'))      filters.cat      = urlP.get('cat');
   if (urlP.get('featured')) filters.featured = 1;
 
-  // Load pizzas
+  // Load pizzas — with auto-retry for Render cold start (server sleeps on free tier)
   async function loadPizzas() {
     const grid = document.getElementById('pizzaGrid');
-    // skeleton
     grid.innerHTML = Array(8).fill('<div class="card" style="height:360px;background:var(--grey-1);animation:pulse 1.5s ease-in-out infinite alternate"></div>').join('');
 
-    try {
-      const params = new URLSearchParams();
-      if (filters.cat)      params.set('category', filters.cat);
-      if (filters.featured) params.set('featured', '1');
-      if (filters.search)   params.set('search', filters.search);
-      if (filters.sort)     params.set('sort', filters.sort);
-      params.set('limit', '50');
+    const params = new URLSearchParams();
+    if (filters.cat)      params.set('category', filters.cat);
+    if (filters.featured) params.set('featured', '1');
+    if (filters.search)   params.set('search', filters.search);
+    if (filters.sort)     params.set('sort', filters.sort);
+    params.set('limit', '50');
 
-      const res  = await fetch(`/api/pizzas?${params}`);
-      const data = await res.json();
-      allPizzas  = data.data || [];
-      renderPizzas(allPizzas);
-    } catch (e) {
-      grid.innerHTML = '<div class="empty-state" style="display:block;grid-column:1/-1"><i class="fas fa-wifi"></i><h3>Backend Offline</h3><p>Start the server with <code>npm start</code> inside the server folder.</p></div>';
+    const maxRetries = 8;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const res  = await fetch(`/api/pizzas?${params}`);
+        const data = await res.json();
+        allPizzas  = data.data || [];
+        renderPizzas(allPizzas);
+        return;
+      } catch (e) {
+        if (attempt < maxRetries) {
+          grid.innerHTML = `<div class="empty-state" style="display:block;grid-column:1/-1">
+            <i class="fas fa-spinner fa-spin" style="font-size:2rem;color:var(--primary);margin-bottom:1rem"></i>
+            <h3>Waking up the server…</h3>
+            <p>This takes about 30 seconds on first load. Please wait ☕</p>
+            <p style="color:var(--grey-4);font-size:.85rem">Attempt ${attempt}/${maxRetries}</p>
+          </div>`;
+          await new Promise(r => setTimeout(r, 5000));
+        } else {
+          grid.innerHTML = '<div class="empty-state" style="display:block;grid-column:1/-1"><i class="fas fa-wifi"></i><h3>Server Unavailable</h3><p>Please refresh the page to try again.</p></div>';
+        }
+      }
     }
   }
 
