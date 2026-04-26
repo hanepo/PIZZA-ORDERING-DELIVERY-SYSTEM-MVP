@@ -46,6 +46,14 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/index.html'));
 });
 
+// Catch-all: serve any .html page from client folder
+app.get('*.html', (req, res) => {
+  const file = path.join(__dirname, '../client', req.path);
+  res.sendFile(file, err => {
+    if (err) res.sendFile(path.join(__dirname, '../client/index.html'));
+  });
+});
+
 // ── Socket.IO — Real-time events ───────────────────────────────
 // Active riders map: { socketId: { riderId, orderId, lat, lng, intervalId } }
 const activeRiders = new Map();
