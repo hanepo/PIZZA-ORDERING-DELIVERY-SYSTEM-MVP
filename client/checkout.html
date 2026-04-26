@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Checkout — Pizza Palace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="/css/style.css"/>
+  <style>
+    .checkout-main { padding-top: calc(var(--nav-h) + 40px); padding-bottom: 80px; }
+    .checkout-grid { display: grid; grid-template-columns: 1fr 380px; gap: 2rem; align-items: start; }
+    .co-card { background: var(--card-bg); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 1.8rem; box-shadow: var(--shadow); margin-bottom: 1.5rem; }
+    .co-card h3 { font-size: 1.1rem; font-weight: 800; margin-bottom: 1.3rem; display: flex; align-items: center; gap: .6rem; }
+    .co-card h3 i { color: var(--red); }
+    .payment-options { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+    .pay-option { display: none; }
+    .pay-option + label {
+      display: flex; align-items: center; gap: .7rem; padding: .9rem 1rem;
+      border: 2px solid var(--border); border-radius: var(--radius-sm); cursor: pointer;
+      font-size: .85rem; font-weight: 600; transition: var(--t);
+    }
+    .pay-option + label i { font-size: 1.1rem; }
+    .pay-option:checked + label { border-color: var(--red); background: rgba(230,57,70,.06); color: var(--red); }
+    .order-item { display: flex; gap: .8rem; padding: .8rem 0; border-bottom: 1px solid var(--border); }
+    .order-item:last-child { border-bottom: none; }
+    .order-item img { width: 56px; height: 56px; border-radius: var(--radius-sm); object-fit: cover; flex-shrink: 0; }
+    .order-item-info { flex: 1; }
+    .order-item-name { font-weight: 700; font-size: .92rem; }
+    .order-item-meta { font-size: .75rem; color: var(--text-2); margin-top: .1rem; }
+    .order-item-price { font-weight: 800; color: var(--red); margin-left: auto; flex-shrink: 0; }
+    .promo-result { background: var(--success-bg); color: var(--success); padding: .7rem 1rem; border-radius: var(--radius-sm); font-size: .85rem; font-weight: 600; display: none; align-items: center; gap: .5rem; margin-top: .5rem; }
+    .order-success { display: none; text-align: center; padding: 3rem 2rem; }
+    .order-success .tick { width: 80px; height: 80px; border-radius: 50%; background: var(--success-bg); color: #2d6a4f; font-size: 2rem; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; }
+    .order-success h2 { font-size: 2rem; font-weight: 900; margin-bottom: .5rem; }
+    .order-success p { color: var(--text-2); font-size: .95rem; margin-bottom: 2rem; }
+    .order-id-result { background: var(--grey-1); border-radius: var(--radius-sm); padding: 1rem; margin: 1rem 0; font-weight: 800; font-size: 1.4rem; letter-spacing: .1em; color: var(--red); }
+  </style>
+</head>
+<body>
+
+<div class="page-loader" id="pageLoader"><i class="fas fa-pizza-slice"></i><p>Loading...</p></div>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <a href="/" class="nav-logo"><i class="fas fa-pizza-slice"></i> Pizza Palace</a>
+  <ul class="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/menu.html">Menu</a></li>
+    <li><a href="/tracking.html">Track Order</a></li>
+  </ul>
+  <div class="nav-right">
+    <button class="dark-toggle" id="darkToggle"><i class="fas fa-moon"></i></button>
+    <a href="/auth.html" class="btn btn-primary btn-sm" id="navLoginBtn"><i class="fas fa-user"></i> Login</a>
+    <div id="navUserMenu" style="display:none;align-items:center;gap:.6rem">
+      <span style="font-size:.85rem;font-weight:600" id="navUserName"></span>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
+    </div>
+  </div>
+</nav>
+
+<main class="checkout-main">
+  <div class="container">
+    <h1 class="page-title" style="font-size:2rem;margin-bottom:2rem"><i class="fas fa-lock" style="color:var(--red)"></i> Checkout</h1>
+
+    <!-- Success screen -->
+    <div class="order-success co-card" id="successScreen">
+      <div class="tick"><i class="fas fa-check"></i></div>
+      <h2>Order Placed! 🍕</h2>
+      <p>Your order has been received. We're getting your pizza ready!</p>
+      <div class="order-id-result" id="successOrderId">Order #—</div>
+      <p style="font-size:.85rem;color:var(--text-2);margin-bottom:1.5rem">You can track your order in real-time using the order ID above.</p>
+      <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-primary" id="trackOrderBtn"><i class="fas fa-map-marker-alt"></i> Track Order</button>
+        <a href="/menu.html" class="btn btn-ghost"><i class="fas fa-utensils"></i> Order More</a>
+      </div>
+    </div>
+
+    <!-- Checkout form -->
+    <div id="checkoutScreen">
+      <div class="checkout-grid">
+        <!-- Left: forms -->
+        <div>
+          <!-- Delivery details -->
+          <div class="co-card">
+            <h3><i class="fas fa-map-marker-alt"></i> Delivery Details</h3>
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Full Name</label>
+                <input type="text" class="form-control" id="coName" placeholder="Ahmad Fauzi" required/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Phone Number</label>
+                <input type="tel" class="form-control" id="coPhone" placeholder="+60 12-345 6789" required/>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Delivery Address</label>
+              <input type="text" class="form-control" id="coAddress" placeholder="No. 1, Jalan Maharani, Muar, Johor" required/>
+            </div>
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">City</label>
+                <input type="text" class="form-control" id="coCity" placeholder="Muar" value="Muar"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Postcode</label>
+                <input type="text" class="form-control" id="coPostcode" placeholder="84000" value="84000"/>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Delivery Notes <small style="color:var(--text-2)">(optional)</small></label>
+              <input type="text" class="form-control" id="coNotes" placeholder="Leave at door, no bell, etc."/>
+            </div>
+          </div>
+
+          <!-- Payment -->
+          <div class="co-card">
+            <h3><i class="fas fa-credit-card"></i> Payment Method</h3>
+            <div class="payment-options">
+              <div>
+                <input class="pay-option" type="radio" name="payment" id="payCod" value="cod" checked/>
+                <label for="payCod"><i class="fas fa-money-bill-wave" style="color:#2d6a4f"></i> Cash on Delivery</label>
+              </div>
+              <div>
+                <input class="pay-option" type="radio" name="payment" id="payOnline" value="online"/>
+                <label for="payOnline"><i class="fas fa-mobile-alt" style="color:var(--info)"></i> Online Banking</label>
+              </div>
+              <div>
+                <input class="pay-option" type="radio" name="payment" id="payCard" value="card"/>
+                <label for="payCard"><i class="fas fa-credit-card" style="color:var(--orange)"></i> Credit / Debit</label>
+              </div>
+              <div>
+                <input class="pay-option" type="radio" name="payment" id="payWallet" value="ewallet"/>
+                <label for="payWallet"><i class="fas fa-wallet" style="color:var(--red)"></i> e-Wallet</label>
+              </div>
+            </div>
+            <p style="font-size:.78rem;color:var(--text-2);margin-top:.8rem"><i class="fas fa-lock"></i> Payment simulation — no real charges</p>
+          </div>
+        </div>
+
+        <!-- Right: order summary -->
+        <div>
+          <div class="co-card" style="position:sticky;top:calc(var(--nav-h) + 1rem)">
+            <h3><i class="fas fa-receipt"></i> Order Summary</h3>
+            <div id="checkoutItemsList"></div>
+
+            <!-- Promo code -->
+            <div style="margin:1rem 0 1.2rem">
+              <div class="promo-input-group">
+                <input type="text" class="form-control" id="promoInput" placeholder="Enter promo code"/>
+                <button class="btn btn-outline btn-sm" onclick="applyPromo()"><i class="fas fa-tag"></i> Apply</button>
+              </div>
+              <div class="promo-result" id="promoResult"><i class="fas fa-check-circle"></i><span id="promoMsg"></span></div>
+            </div>
+
+            <!-- Totals -->
+            <div style="border-top:1px solid var(--border);padding-top:1rem">
+              <div class="cart-summary-row"><span>Subtotal</span><span id="coSubtotal">RM0.00</span></div>
+              <div class="cart-summary-row"><span style="color:#2d6a4f">Discount</span><span id="coDiscount" style="color:#2d6a4f">RM0.00</span></div>
+              <div class="cart-summary-row"><span>Delivery</span><span>RM3.00</span></div>
+              <div class="cart-summary-row total"><span>Total</span><span id="checkoutTotal" style="color:var(--red)">RM3.00</span></div>
+            </div>
+
+            <button class="btn btn-primary btn-full btn-lg" style="margin-top:1.5rem" id="placeOrderBtn" onclick="placeOrder()">
+              <span id="placeOrderText"><i class="fas fa-check-circle"></i> Place Order</span>
+              <span id="placeOrderSpinner" style="display:none"><i class="fas fa-spinner fa-spin"></i> Processing...</span>
+            </button>
+            <a href="/menu.html" style="display:block;text-align:center;font-size:.82rem;color:var(--text-2);margin-top:.8rem">
+              ← Back to Menu
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="toast-container"></div>
+<script src="/js/app.js"></script>
+<script src="/js/cart.js"></script>
+<script>
+  window.addEventListener('load', () => setTimeout(() => document.getElementById('pageLoader').classList.add('hidden'), 600));
+
+  // Redirect if no cart
+  if (Cart.count() === 0) window.location.href = '/menu.html';
+
+  let promoDiscount = 0;
+  let promoCode     = '';
+
+  // Pre-fill user details
+  const user = Auth.getUser();
+  if (user) {
+    document.getElementById('coName').value  = user.name  || '';
+    document.getElementById('coPhone').value = user.phone || '';
+  }
+
+  // Render checkout items
+  function renderCheckoutItems() {
+    const items = Cart.get();
+    const list  = document.getElementById('checkoutItemsList');
+    list.innerHTML = items.map(item => `
+      <div class="order-item">
+        <img src="${item.image}" alt="${item.name}" onerror="this.src='https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=200&q=60'"/>
+        <div class="order-item-info">
+          <div class="order-item-name">${item.name} ×${item.quantity}</div>
+          <div class="order-item-meta">${item.size.charAt(0).toUpperCase()+item.size.slice(1)} · ${item.crust}</div>
+        </div>
+        <div class="order-item-price">${formatPrice(item.price * item.quantity)}</div>
+      </div>
+    `).join('');
+
+    const sub = Cart.subtotal();
+    document.getElementById('coSubtotal').textContent   = formatPrice(sub);
+    document.getElementById('coDiscount').textContent   = promoDiscount > 0 ? `-${formatPrice(promoDiscount)}` : 'RM0.00';
+    document.getElementById('checkoutTotal').textContent= formatPrice(Math.max(0, sub - promoDiscount) + 3);
+  }
+  renderCheckoutItems();
+
+  async function applyPromo() {
+    const code = document.getElementById('promoInput').value.trim().toUpperCase();
+    if (!code) { showToast('Enter a promo code', 'error'); return; }
+
+    try {
+      const data = await apiCall('POST', '/orders/validate-promo', { code });
+      if (data.success) {
+        const sub      = Cart.subtotal();
+        promoDiscount  = data.discountType === 'percent'
+          ? Math.round(sub * (data.discountValue / 100) * 100) / 100
+          : data.discountValue;
+        promoCode = code;
+
+        const result = document.getElementById('promoResult');
+        document.getElementById('promoMsg').textContent = `${code} applied! -${formatPrice(promoDiscount)} off`;
+        result.style.display = 'flex';
+        renderCheckoutItems();
+        showToast('Promo code applied!', 'success');
+      } else {
+        showToast(data.message || 'Invalid promo code', 'error');
+      }
+    } catch {
+      showToast('Could not validate promo', 'error');
+    }
+  }
+
+  async function placeOrder() {
+    const name    = document.getElementById('coName').value.trim();
+    const phone   = document.getElementById('coPhone').value.trim();
+    const address = document.getElementById('coAddress').value.trim();
+    const notes   = document.getElementById('coNotes').value.trim();
+    const payment = document.querySelector('input[name="payment"]:checked').value;
+
+    if (!name || !phone || !address) { showToast('Please fill in delivery details', 'error'); return; }
+    if (!Auth.isLoggedIn()) { window.location.href = '/auth.html'; return; }
+
+    const items = Cart.get().map(i => ({
+      id: i.id, name: i.name, quantity: i.quantity,
+      price: i.basePrice, size: i.size,
+      crust: i.crust, toppings: i.toppings
+    }));
+
+    document.getElementById('placeOrderText').style.display    = 'none';
+    document.getElementById('placeOrderSpinner').style.display = 'inline-flex';
+    document.getElementById('placeOrderBtn').disabled          = true;
+
+    try {
+      const data = await apiCall('POST', '/orders', {
+        items, address, notes,
+        customer_name:  name,
+        customer_phone: phone,
+        payment_method: payment,
+        promo_code: promoCode || null
+      });
+
+      if (data.success) {
+        Cart.clear();
+        localStorage.setItem('lastOrderId', data.orderId);
+        document.getElementById('checkoutScreen').style.display = 'none';
+        const suc = document.getElementById('successScreen');
+        suc.style.display = 'block';
+        document.getElementById('successOrderId').textContent = `Order #${data.orderId}`;
+        document.getElementById('trackOrderBtn').onclick = () => {
+          window.location.href = `/tracking.html?id=${data.orderId}`;
+        };
+      } else {
+        showToast(data.message || 'Order failed', 'error');
+      }
+    } catch {
+      showToast('Server error. Please try again.', 'error');
+    } finally {
+      document.getElementById('placeOrderText').style.display    = 'inline-flex';
+      document.getElementById('placeOrderSpinner').style.display = 'none';
+      document.getElementById('placeOrderBtn').disabled          = false;
+    }
+  }
+</script>
+</body>
+</html>

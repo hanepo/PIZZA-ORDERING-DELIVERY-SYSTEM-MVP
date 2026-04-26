@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Rider Panel — Pizza Palace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="/css/style.css"/>
+  <style>
+    body { background: var(--bg); min-height: 100vh; }
+    .rider-layout { display: flex; flex-direction: column; min-height: 100vh; }
+    .rider-header { background: var(--card-bg); border-bottom: 1px solid var(--border); padding: 0 1.5rem; height: 64px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+    .rider-content { flex: 1; padding: 1.5rem; max-width: 960px; margin: 0 auto; width: 100%; }
+    .order-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem; margin-bottom: 1.2rem; transition: var(--t); }
+    .order-card:hover { border-color: var(--orange); box-shadow: var(--shadow-sm); }
+    .order-card.active-delivery { border-color: var(--red); border-width: 2px; }
+    .order-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .8rem; margin-bottom: 1rem; }
+    .order-items-list { background: var(--bg-2); border-radius: var(--radius-sm); padding: .8rem 1rem; margin-bottom: 1rem; font-size: .85rem; }
+    .order-actions { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+    .status-pill { padding: .3rem .8rem; border-radius: 50px; font-size: .78rem; font-weight: 700; text-transform: uppercase; }
+    .pill-placed          { background: rgba(108,117,125,.1); color: var(--grey-3); }
+    .pill-preparing       { background: rgba(244,162,97,.1);  color: var(--orange); }
+    .pill-out_for_delivery{ background: rgba(230,57,70,.1);   color: var(--red); }
+    .pill-delivered       { background: rgba(45,106,79,.1);   color: #2d6a4f; }
+    .rider-status-wrap { display: flex; align-items: center; gap: .6rem; }
+    .empty-state { text-align: center; padding: 4rem 2rem; color: var(--text-2); }
+    .empty-state i { font-size: 3.5rem; margin-bottom: 1rem; display: block; opacity: .25; }
+    @media(max-width:600px) { .order-actions { flex-direction: column; align-items: stretch; } .order-actions .btn { justify-content: center; } }
+  </style>
+</head>
+<body>
+
+<div class="page-loader" id="pageLoader"><i class="fas fa-motorcycle"></i><p>Loading Rider Panel...</p></div>
+
+<div class="rider-layout">
+  <!-- Header -->
+  <header class="rider-header">
+    <div style="display:flex;align-items:center;gap:.9rem">
+      <div style="width:38px;height:38px;border-radius:50%;background:var(--red);display:flex;align-items:center;justify-content:center;color:var(--white);font-weight:800" id="riderAvatar">R</div>
+      <div>
+        <div style="font-weight:800;font-size:.95rem" id="riderName">Rider</div>
+        <div style="font-size:.72rem;color:var(--text-2)">Delivery Panel</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:1rem">
+      <!-- Availability toggle -->
+      <div class="rider-status-wrap">
+        <span style="font-size:.8rem;color:var(--text-2)">Status:</span>
+        <select id="riderStatusSelect" style="padding:.35rem .7rem;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:.82rem;font-weight:700;cursor:pointer" onchange="updateMyStatus(this.value)">
+          <option value="available">🟢 Available</option>
+          <option value="busy">🟠 Busy</option>
+          <option value="offline">⚫ Offline</option>
+        </select>
+      </div>
+      <button class="dark-toggle" id="darkToggle"><i class="fas fa-moon"></i></button>
+      <button class="btn btn-ghost btn-sm" onclick="Auth.clear();window.location.href='/auth.html'"><i class="fas fa-sign-out-alt"></i> Logout</button>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <div class="rider-content">
+    <!-- Stats row -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:2rem">
+      <div class="stat-card">
+        <div class="stat-card-value" style="color:var(--orange)" id="statsActive">—</div>
+        <div class="stat-card-label">Active Orders</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-value" style="color:#2d6a4f" id="statsDelivered">—</div>
+        <div class="stat-card-label">Delivered Today</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-value" style="color:var(--red)" id="statsTotal">—</div>
+        <div class="stat-card-label">All Time</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+      <h2 style="font-weight:800">My Orders</h2>
+      <button class="btn btn-ghost btn-sm" onclick="loadMyOrders()"><i class="fas fa-sync"></i> Refresh</button>
+    </div>
+
+    <div id="ordersContainer">
+      <div style="text-align:center;padding:3rem"><div class="loader" style="margin:0 auto"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+<script src="/js/app.js"></script>
+<script>
+  window.addEventListener('load', () => setTimeout(() => document.getElementById('pageLoader').classList.add('hidden'), 700));
+
+  // Auth guard — rider only
+  if (!Auth.isLoggedIn()) window.location.href = '/auth.html';
+  const user = Auth.getUser();
+  if (!user || user.role === 'admin') window.location.href = '/admin/dashboard.html';
+
+  document.getElementById('riderName').textContent   = user.name || 'Rider';
+  document.getElementById('riderAvatar').textContent = (user.name || 'R').charAt(0).toUpperCase();
+
+  let riderId   = null;
+  let socket    = null;
+  let myOrders  = [];
+
+  // Fetch rider profile to get riderId (needed for socket events)
+  async function loadRiderProfile() {
+    try {
+      const data = await apiCall('GET', '/auth/me');
+      if (data.success) {
+        // Rider's user_id matches the riders table via a lookup; use user id for now
+        riderId = data.data.id;
+      }
+    } catch {}
+  }
+
+  // Socket.IO
+  function connectSocket() {
+    try {
+      socket = io();
+      socket.on('connect', () => {
+        // Join rooms for all active orders
+        myOrders.filter(o => o.status === 'out_for_delivery').forEach(o => {
+          socket.emit('join-order', { orderId: o.id });
+        });
+      });
+      socket.on('order-status-update', data => {
+        showToast(`Order #${data.orderId} → ${statusLabel(data.status)}`, 'info');
+        loadMyOrders();
+      });
+    } catch {}
+  }
+
+  async function loadMyOrders() {
+    try {
+      const res  = await fetch('/api/riders/my-orders', {
+        headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+      });
+      const data = await res.json();
+      myOrders   = data.data || [];
+      renderOrders(myOrders);
+      updateStats(myOrders);
+    } catch { showToast('Failed to load orders', 'error'); }
+  }
+
+  function updateStats(orders) {
+    const active      = orders.filter(o => ['placed','preparing','out_for_delivery'].includes(o.status)).length;
+    const today       = new Date().toISOString().slice(0,10);
+    const deliveredTd = orders.filter(o => o.status === 'delivered' && (o.created_at || '').slice(0,10) === today).length;
+    document.getElementById('statsActive').textContent    = active;
+    document.getElementById('statsDelivered').textContent = deliveredTd;
+    document.getElementById('statsTotal').textContent     = orders.filter(o => o.status === 'delivered').length;
+  }
+
+  function renderOrders(orders) {
+    const container = document.getElementById('ordersContainer');
+    if (!orders.length) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <i class="fas fa-motorcycle"></i>
+          <h3 style="font-weight:800;margin-bottom:.5rem">No orders assigned</h3>
+          <p>Orders assigned to you will appear here. Stay available!</p>
+        </div>`;
+      return;
+    }
+
+    // Sort: active first, then by newest
+    const sorted = [...orders].sort((a, b) => {
+      const priority = { out_for_delivery: 0, preparing: 1, placed: 2, delivered: 3, cancelled: 4 };
+      return (priority[a.status] ?? 5) - (priority[b.status] ?? 5);
+    });
+
+    container.innerHTML = sorted.map(o => {
+      const isActive   = o.status === 'out_for_delivery';
+      const canStart   = o.status === 'preparing';
+      const canDeliver = o.status === 'out_for_delivery';
+
+      const itemsHtml = o.items
+        ? o.items.map(i => `<div>• ${i.pizza_name} (${i.size}) × ${i.quantity} — RM ${parseFloat(i.price).toFixed(2)}</div>`).join('')
+        : `<div style="color:var(--text-2)">—</div>`;
+
+      return `
+      <div class="order-card ${isActive ? 'active-delivery' : ''}">
+        <div class="order-meta">
+          <div>
+            <div style="font-weight:800;font-size:1.05rem">Order #${o.id}</div>
+            <div style="font-size:.78rem;color:var(--text-2)">${formatDate(o.created_at)}</div>
+          </div>
+          <span class="status-pill pill-${o.status}">${statusLabel(o.status)}</span>
+        </div>
+
+        <!-- Customer info -->
+        <div style="margin-bottom:1rem">
+          <div style="display:flex;align-items:center;gap:.5rem;font-weight:700;margin-bottom:.3rem">
+            <i class="fas fa-user" style="color:var(--red);font-size:.85rem"></i>
+            ${o.customer_name || '—'}
+          </div>
+          <div style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:var(--text-2);margin-bottom:.3rem">
+            <i class="fas fa-phone" style="font-size:.8rem"></i>
+            <a href="tel:${o.customer_phone}" style="color:inherit">${o.customer_phone || '—'}</a>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:.5rem;font-size:.85rem;color:var(--text-2)">
+            <i class="fas fa-map-marker-alt" style="color:var(--red);font-size:.85rem;margin-top:.15rem"></i>
+            <span>${o.address}</span>
+          </div>
+        </div>
+
+        <!-- Items -->
+        <div class="order-items-list">
+          <div style="font-weight:700;font-size:.8rem;color:var(--text-2);margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.5px">Items</div>
+          ${itemsHtml}
+          <div style="border-top:1px solid var(--border);margin-top:.6rem;padding-top:.6rem;font-weight:800;display:flex;justify-content:space-between">
+            <span>Total</span>
+            <span style="color:var(--red)">RM ${parseFloat(o.total_price).toFixed(2)}</span>
+          </div>
+          <div style="font-size:.75rem;color:var(--text-2);margin-top:.2rem">
+            Payment: ${o.payment_method === 'cod' ? 'Cash on Delivery 💵' : o.payment_method || '—'}
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="order-actions">
+          ${canStart ? `
+            <button class="btn btn-primary" onclick="startDelivery(${o.id})">
+              <i class="fas fa-motorcycle"></i> Start Delivery
+            </button>
+          ` : ''}
+          ${canDeliver ? `
+            <button class="btn btn-primary" style="background:linear-gradient(135deg,#2d6a4f,#40916c)" onclick="markDelivered(${o.id})">
+              <i class="fas fa-check-circle"></i> Mark as Delivered
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="window.open('/tracking.html?id=${o.id}','_blank')">
+              <i class="fas fa-map-marked-alt"></i> Live Track
+            </button>
+          ` : ''}
+          ${['placed'].includes(o.status) ? `
+            <span style="font-size:.82rem;color:var(--text-2);font-style:italic"><i class="fas fa-clock"></i> Waiting for kitchen...</span>
+          ` : ''}
+          ${o.status === 'delivered' || o.status === 'cancelled' ? `
+            <span style="font-size:.82rem;color:var(--text-2)">${o.status === 'delivered' ? '✅ Completed' : '❌ Cancelled'}</span>
+          ` : ''}
+        </div>
+      </div>
+      `;
+    }).join('');
+  }
+
+  async function startDelivery(orderId) {
+    try {
+      // Emit socket event to trigger GPS simulation on server
+      if (socket) {
+        socket.emit('start-delivery', { orderId, riderId });
+      }
+      // Also update status
+      const data = await apiCall('PUT', `/orders/${orderId}/status`, { status: 'out_for_delivery' });
+      if (data.success) {
+        showToast(`Order #${orderId} — Delivery started! 🏍️`, 'success');
+        loadMyOrders();
+      } else {
+        showToast(data.message || 'Failed', 'error');
+      }
+    } catch { showToast('Server error', 'error'); }
+  }
+
+  async function markDelivered(orderId) {
+    try {
+      const data = await apiCall('PUT', `/orders/${orderId}/status`, { status: 'delivered' });
+      if (data.success) {
+        showToast(`Order #${orderId} delivered! ✅`, 'success');
+        loadMyOrders();
+      } else {
+        showToast(data.message || 'Failed', 'error');
+      }
+    } catch { showToast('Server error', 'error'); }
+  }
+
+  async function updateMyStatus(status) {
+    // Find rider record for this user
+    try {
+      const res  = await fetch('/api/riders', { headers: { 'Authorization': `Bearer ${Auth.getToken()}` } });
+      const data = await res.json();
+      const mine = (data.data || []).find(r => r.phone === user.phone || r.name === user.name);
+      if (mine) {
+        await apiCall('PUT', `/riders/${mine.id}`, { status });
+        showToast(`Status → ${status}`, 'success');
+      }
+    } catch {}
+  }
+
+  // Init
+  async function init() {
+    await loadRiderProfile();
+    await loadMyOrders();
+    connectSocket();
+  }
+
+  init();
+  setInterval(loadMyOrders, 30000);
+</script>
+</body>
+</html>

@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Track Your Order — Pizza Palace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="/css/style.css"/>
+  <style>
+    .tracking-main { padding-top: calc(var(--nav-h) + 40px); padding-bottom: 80px; }
+    .track-search-card {
+      background: var(--card-bg); border-radius: var(--radius-lg);
+      border: 1px solid var(--border); padding: 2rem; margin-bottom: 2rem;
+      box-shadow: var(--shadow);
+    }
+    .tracking-grid { display: grid; grid-template-columns: 1fr 360px; gap: 2rem; align-items: start; }
+    .order-info-card { background: var(--card-bg); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 1.8rem; box-shadow: var(--shadow); }
+    .order-info-row { display: flex; justify-content: space-between; padding: .65rem 0; border-bottom: 1px solid var(--border); font-size: .9rem; }
+    .order-info-row:last-child { border-bottom: none; }
+    .order-info-row .label { color: var(--text-2); }
+    .order-info-row .value { font-weight: 600; }
+    .fake-map-container { position: relative; background: #1a2744; border-radius: var(--radius-lg); overflow: hidden; height: 320px; margin: 1.5rem 0; }
+    /* Fake SVG map */
+    .map-grid-line { stroke: rgba(255,255,255,.06); stroke-width: 1; }
+    .map-road { stroke: rgba(255,255,255,.12); stroke-width: 2; }
+    .map-road-main { stroke: rgba(255,200,0,.15); stroke-width: 3; }
+    .rider-marker { position: absolute; z-index: 10; transform: translate(-50%, -50%); transition: left .8s ease, top .8s ease; }
+    .rider-dot-outer { width: 30px; height: 30px; border-radius: 50%; background: rgba(230,57,70,.3); display: flex; align-items: center; justify-content: center; animation: ripple 1.5s ease-in-out infinite; }
+    .rider-dot-inner { width: 16px; height: 16px; border-radius: 50%; background: var(--red); border: 2px solid var(--white); box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+    @keyframes ripple { 0%,100%{box-shadow:0 0 0 0 rgba(230,57,70,.4)} 50%{box-shadow:0 0 0 10px rgba(230,57,70,0)} }
+    .destination-pin { position: absolute; z-index: 10; transform: translate(-50%, -100%); color: #2d6a4f; font-size: 1.5rem; }
+    .origin-pin { position: absolute; z-index: 10; transform: translate(-50%, -100%); color: var(--orange); font-size: 1.3rem; }
+    .map-label {
+      position: absolute; background: rgba(0,0,0,.75); color: var(--white);
+      font-size: .68rem; font-weight: 700; padding: .2rem .6rem; border-radius: 4px; white-space: nowrap;
+    }
+    .eta-box { background: linear-gradient(135deg, var(--dark), var(--dark-3)); border-radius: var(--radius-lg); padding: 1.5rem; text-align: center; color: var(--white); margin-bottom: 1.5rem; }
+    .eta-time { font-size: 3.5rem; font-weight: 900; color: var(--orange); line-height: 1; }
+    .eta-unit { font-size: 1rem; color: rgba(255,255,255,.5); margin-top: .2rem; }
+    .rider-card { background: var(--card-bg); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 1.2rem; display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+    .rider-avatar { width: 52px; height: 52px; border-radius: 50%; background: var(--grey-1); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+    .rider-info h5 { font-weight: 700; margin-bottom: .2rem; }
+    .rider-info p  { font-size: .82rem; color: var(--text-2); }
+    .call-btn { margin-left: auto; background: var(--success-bg); color: var(--success); border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .order-items-list { display: flex; flex-direction: column; gap: .5rem; }
+    .order-item-row { display: flex; gap: .8rem; padding: .5rem; border-radius: var(--radius-sm); background: var(--bg-2); font-size: .85rem; }
+    .order-item-row img { width: 46px; height: 46px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
+    .order-item-row .name { font-weight: 700; }
+    .order-item-row .meta { font-size: .75rem; color: var(--text-2); }
+    .order-item-row .price { margin-left: auto; font-weight: 700; color: var(--red); flex-shrink: 0; }
+    #noOrderMsg { display: none; }
+    #trackingContent { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="page-loader" id="pageLoader"><i class="fas fa-pizza-slice"></i><p>Loading Tracker...</p></div>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <a href="/" class="nav-logo"><i class="fas fa-pizza-slice"></i> Pizza Palace</a>
+  <ul class="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/menu.html">Menu</a></li>
+    <li><a href="/tracking.html" class="active">Track Order</a></li>
+  </ul>
+  <div class="nav-right">
+    <button class="dark-toggle" id="darkToggle"><i class="fas fa-moon"></i></button>
+    <button class="nav-cart" id="cartBtn" aria-label="Cart">
+      <i class="fas fa-shopping-cart"></i>
+      <span class="nav-cart-badge" id="cartCount" style="display:none">0</span>
+    </button>
+    <a href="/auth.html" class="btn btn-primary btn-sm" id="navLoginBtn"><i class="fas fa-user"></i> Login</a>
+    <div id="navUserMenu" style="display:none;align-items:center;gap:.6rem">
+      <span style="font-size:.85rem;font-weight:600" id="navUserName"></span>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
+    </div>
+    <div class="hamburger" id="hamburger"><span></span><span></span><span></span></div>
+  </div>
+</nav>
+
+<!-- CART SIDEBAR -->
+<div class="cart-overlay" id="cartOverlay"></div>
+<div class="cart-sidebar" id="cartSidebar">
+  <div class="cart-header">
+    <div class="cart-title"><i class="fas fa-shopping-cart" style="color:var(--red)"></i> Your Cart</div>
+    <button class="cart-close" id="cartClose"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="cart-items" id="cartItems"></div>
+  <div class="cart-footer">
+    <div class="cart-summary-row total"><span>Total</span><span id="cartTotal">RM0.00</span></div>
+    <button class="btn btn-primary btn-full" style="margin-top:1rem" id="cartCheckout">
+      <i class="fas fa-lock"></i> Checkout
+    </button>
+  </div>
+</div>
+
+<main class="tracking-main">
+  <div class="container">
+
+    <!-- Search card -->
+    <div class="track-search-card">
+      <h2 style="font-size:1.5rem;font-weight:800;margin-bottom:.4rem"><i class="fas fa-map-marker-alt" style="color:var(--red)"></i> Track Your Order</h2>
+      <p style="font-size:.88rem;color:var(--text-2);margin-bottom:1.2rem">Enter your order ID to get real-time updates on your pizza delivery.</p>
+      <div style="display:flex;gap:.8rem;flex-wrap:wrap">
+        <input type="text" class="form-control" id="orderIdInput" placeholder="e.g. 12" style="max-width:280px"
+               value=""/>
+        <button class="btn btn-primary" onclick="trackOrder()"><i class="fas fa-search"></i> Track</button>
+      </div>
+    </div>
+
+    <!-- No order message -->
+    <div id="noOrderMsg" class="empty-state" style="display:none">
+      <i class="fas fa-receipt"></i>
+      <h3>No Order Found</h3>
+      <p>Enter your order ID above or check your email for order confirmation.</p>
+      <a href="/menu.html" class="btn btn-primary" style="margin-top:1rem"><i class="fas fa-utensils"></i> Order Now</a>
+    </div>
+
+    <!-- Tracking content -->
+    <div id="trackingContent">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem">
+        <div>
+          <h3 style="font-weight:800">Order <span class="order-id-display" style="color:var(--red)"></span></h3>
+          <p style="font-size:.84rem;color:var(--text-2)" id="orderDate"></p>
+        </div>
+        <div style="display:flex;align-items:center;gap:.8rem">
+          <span class="status-badge" id="currentStatusBadge">Placed</span>
+        </div>
+      </div>
+
+      <!-- Status message -->
+      <div style="background:rgba(230,57,70,.07);border:1px solid rgba(230,57,70,.15);border-radius:var(--radius-sm);padding:1rem;margin-bottom:2rem;font-weight:600;display:flex;align-items:center;gap:.7rem" id="trackingMessage">
+        <i class="fas fa-info-circle" style="color:var(--red)"></i>
+        <span>Connecting to live tracking...</span>
+      </div>
+
+      <!-- Tracker steps -->
+      <div class="order-tracker" style="margin-bottom:2.5rem">
+        <div class="tracker-steps">
+          <div style="position:absolute;top:22px;left:0;right:0;height:3px;background:var(--grey-2);z-index:0"></div>
+          <div class="tracker-progress" id="trackerProgress" style="width:5%"></div>
+          <div class="tracker-step active" data-status="placed">
+            <div class="step-dot"><i class="fas fa-check"></i></div>
+            <div class="step-label">Order<br>Placed</div>
+          </div>
+          <div class="tracker-step" data-status="preparing">
+            <div class="step-dot"><i class="fas fa-fire"></i></div>
+            <div class="step-label">Preparing<br>Your Pizza</div>
+          </div>
+          <div class="tracker-step" data-status="out_for_delivery">
+            <div class="step-dot"><i class="fas fa-motorcycle"></i></div>
+            <div class="step-label">Out for<br>Delivery</div>
+          </div>
+          <div class="tracker-step" data-status="delivered">
+            <div class="step-dot"><i class="fas fa-home"></i></div>
+            <div class="step-label">Delivered!</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tracking-grid">
+        <!-- Left: Map + Rider -->
+        <div>
+          <!-- ETA -->
+          <div class="eta-box" id="etaBox">
+            <div style="font-size:.75rem;text-transform:uppercase;letter-spacing:.15em;opacity:.5;margin-bottom:.3rem">Estimated Arrival</div>
+            <div class="eta-time" id="etaMinutes">—</div>
+            <div class="eta-unit">minutes away</div>
+          </div>
+
+          <!-- Rider info -->
+          <div class="rider-card" id="riderCard">
+            <div class="rider-avatar"><i class="fas fa-motorcycle"></i></div>
+            <div class="rider-info">
+              <h5 id="riderName">Assigning rider...</h5>
+              <p id="riderVehicle">🛵 Delivery Rider</p>
+            </div>
+            <button class="call-btn" onclick="showToast('Call feature for demo only', 'info')"><i class="fas fa-phone"></i></button>
+          </div>
+
+          <!-- Fake map -->
+          <div class="fake-map-container" id="fakeMap">
+            <svg width="100%" height="100%" style="position:absolute;inset:0">
+              <!-- Grid lines -->
+              <line x1="25%" y1="0" x2="25%" y2="100%" class="map-grid-line"/>
+              <line x1="50%" y1="0" x2="50%" y2="100%" class="map-grid-line"/>
+              <line x1="75%" y1="0" x2="75%" y2="100%" class="map-grid-line"/>
+              <line x1="0" y1="33%" x2="100%" y2="33%" class="map-grid-line"/>
+              <line x1="0" y1="66%" x2="100%" y2="66%" class="map-grid-line"/>
+              <!-- Main roads -->
+              <line x1="10%" y1="20%" x2="90%" y2="20%" class="map-road-main"/>
+              <line x1="50%" y1="5%"  x2="50%" y2="95%" class="map-road-main"/>
+              <line x1="15%" y1="60%" x2="85%" y2="60%" class="map-road"/>
+              <line x1="30%" y1="10%" x2="30%" y2="90%" class="map-road"/>
+              <line x1="70%" y1="10%" x2="70%" y2="90%" class="map-road"/>
+            </svg>
+            <!-- Labels -->
+            <div class="map-label" style="top:.5rem;left:50%;transform:translateX(-50%)">Jalan Petri, Muar</div>
+            <!-- Origin: Restaurant -->
+            <div class="origin-pin" style="left:50%;top:20%"><i class="fas fa-store"></i></div>
+            <div class="map-label" style="left:52%;top:22%">Pizza Palace</div>
+            <!-- Destination -->
+            <div class="destination-pin" id="destPin" style="left:75%;top:60%"><i class="fas fa-map-marker-alt"></i></div>
+            <div class="map-label" style="left:56%;top:62%">Your Location</div>
+            <!-- Rider dot -->
+            <div class="rider-marker" id="riderDot" style="left:50%;top:20%">
+              <div class="rider-dot-outer"><div class="rider-dot-inner"></div></div>
+            </div>
+          </div>
+
+          <p style="font-size:.75rem;color:var(--text-2);text-align:center;margin-top:.6rem">
+            <i class="fas fa-info-circle"></i> Simulated map view — Muar, Johor
+          </p>
+        </div>
+
+        <!-- Right: Order summary -->
+        <div>
+          <div class="order-info-card">
+            <h4 style="font-weight:800;margin-bottom:1.2rem">Order Summary</h4>
+            <div id="orderItemsList" class="order-items-list" style="margin-bottom:1rem"></div>
+            <div class="order-info-row"><span class="label">Delivery Address</span><span class="value" id="orderAddress" style="max-width:180px;text-align:right;white-space:normal">—</span></div>
+            <div class="order-info-row"><span class="label">Payment</span><span class="value" id="paymentMethod">—</span></div>
+            <div class="order-info-row"><span class="label">Total</span><span class="value" id="orderTotal" style="color:var(--red)">—</span></div>
+          </div>
+
+          <div style="margin-top:1.5rem;display:flex;gap:.8rem;flex-direction:column">
+            <a href="/menu.html" class="btn btn-outline btn-full"><i class="fas fa-plus"></i> Order Again</a>
+            <a href="/" class="btn btn-ghost btn-full"><i class="fas fa-home"></i> Back to Home</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- CHATBOT -->
+<button class="chatbot-toggle" id="chatbotToggle"><i class="fas fa-comments"></i></button>
+<div class="chatbot-window" id="chatbotWindow">
+  <div class="chatbot-head"><i class="fas fa-robot"></i><div><h5>Pizza Bot</h5><small>Tracking support</small></div></div>
+  <div class="chatbot-messages" id="chatMessages"><div class="bot-msg">👋 Need help tracking your order? Just ask!</div></div>
+  <div class="chatbot-input">
+    <input type="text" id="chatInput" placeholder="Type a message..."/>
+    <button id="chatSend"><i class="fas fa-paper-plane"></i></button>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+<script src="/js/app.js"></script>
+<script src="/js/cart.js"></script>
+<script src="/js/tracking.js"></script>
+<script>
+  window.addEventListener('load', () => setTimeout(() => document.getElementById('pageLoader').classList.add('hidden'), 600));
+
+  function trackOrder() {
+    const id = document.getElementById('orderIdInput').value.trim();
+    if (!id) { showToast('Please enter an order ID', 'error'); return; }
+    window.location.href = `/tracking.html?id=${id}`;
+  }
+
+  document.getElementById('orderIdInput').addEventListener('keypress', e => {
+    if (e.key === 'Enter') trackOrder();
+  });
+
+  // Pre-fill from URL
+  const urlId = new URLSearchParams(window.location.search).get('id');
+  if (urlId) {
+    document.getElementById('orderIdInput').value = urlId;
+    document.getElementById('trackingContent').style.display = 'block';
+  }
+</script>
+</body>
+</html>

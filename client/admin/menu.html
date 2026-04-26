@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pizza Menu — Pizza Palace Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="/css/style.css"/>
+  <style>
+    .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; inset: 0; background: var(--grey-3); border-radius: 24px; transition: .3s; }
+    .toggle-slider::before { content:''; position: absolute; width: 18px; height: 18px; left: 3px; bottom: 3px; background: var(--white); border-radius: 50%; transition: .3s; }
+    input:checked + .toggle-slider { background: #2d6a4f; }
+    input:checked + .toggle-slider::before { transform: translateX(20px); }
+    .pizza-img-preview { width: 100%; height: 200px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--grey-1); }
+  </style>
+</head>
+<body>
+
+<div class="page-loader" id="pageLoader"><i class="fas fa-pizza-slice"></i><p>Loading...</p></div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="pizzaModal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header">
+      <h3 class="modal-title" id="modalTitle">Add New Pizza</h3>
+      <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editId"/>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Pizza Name *</label>
+          <input type="text" class="form-control" id="fName" placeholder="e.g. Pepperoni Classic" required/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Base Price (RM) *</label>
+          <input type="number" class="form-control" id="fPrice" placeholder="22.90" step="0.1" min="1" required/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description *</label>
+        <textarea class="form-control" id="fDesc" placeholder="Describe this pizza..."></textarea>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <select class="form-control" id="fCategory">
+            <option value="non-veg">Non-Veg</option>
+            <option value="veg">Veg</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Image URL</label>
+          <input type="url" class="form-control" id="fImage" placeholder="https://images.unsplash.com/..."/>
+        </div>
+      </div>
+      <div style="margin-bottom:1rem">
+        <img class="pizza-img-preview" id="imgPreview" src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80" alt="Preview"/>
+      </div>
+      <div style="display:flex;gap:2rem;align-items:center">
+        <label style="display:flex;align-items:center;gap:.7rem;cursor:pointer;font-weight:600;font-size:.9rem">
+          <label class="toggle-switch"><input type="checkbox" id="fFeatured"/><span class="toggle-slider"></span></label>
+          Featured Pizza
+        </label>
+        <label style="display:flex;align-items:center;gap:.7rem;cursor:pointer;font-weight:600;font-size:.9rem">
+          <label class="toggle-switch"><input type="checkbox" id="fAvailable" checked/><span class="toggle-slider"></span></label>
+          Available
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="savePizza()">
+        <span id="saveText"><i class="fas fa-save"></i> Save Pizza</span>
+        <span id="saveSpinner" style="display:none"><i class="fas fa-spinner fa-spin"></i> Saving...</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <h3 class="modal-title">Confirm Delete</h3>
+      <button class="modal-close" onclick="document.getElementById('deleteModal').classList.remove('open')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <p>Are you sure you want to delete <strong id="deletePizzaName"></strong>? This will hide it from the menu.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('deleteModal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" style="background:var(--red)" id="confirmDeleteBtn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="admin-layout">
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="sidebar-logo"><i class="fas fa-pizza-slice"></i><span>Pizza Palace</span></div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-section">Main</div>
+      <a href="/admin/dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+      <a href="/admin/orders.html"><i class="fas fa-receipt"></i> Orders</a>
+      <div class="sidebar-section">Manage</div>
+      <a href="/admin/menu.html" class="active"><i class="fas fa-pizza-slice"></i> Pizza Menu</a>
+      <a href="/admin/riders.html"><i class="fas fa-motorcycle"></i> Riders</a>
+      <div class="sidebar-section">Other</div>
+      <a href="/"><i class="fas fa-store"></i> View Website</a>
+    </nav>
+    <div class="sidebar-footer">
+      <button onclick="Auth.clear();window.location.href='/auth.html'" style="background:rgba(230,57,70,.15);border:1px solid rgba(230,57,70,.2);color:rgba(255,255,255,.6);padding:.4rem 1rem;border-radius:6px;font-size:.75rem;cursor:pointer;width:100%"><i class="fas fa-sign-out-alt"></i> Logout</button>
+    </div>
+  </aside>
+
+  <main class="admin-main">
+    <div class="admin-topbar">
+      <div style="display:flex;align-items:center;gap:1rem">
+        <button class="btn btn-ghost btn-icon" onclick="document.getElementById('adminSidebar').classList.toggle('open')"><i class="fas fa-bars"></i></button>
+        <div style="font-weight:800">Pizza Menu</div>
+      </div>
+      <div style="display:flex;gap:.8rem;align-items:center">
+        <button class="dark-toggle" id="darkToggle"><i class="fas fa-moon"></i></button>
+        <button class="btn btn-primary" onclick="openModal()"><i class="fas fa-plus"></i> Add Pizza</button>
+      </div>
+    </div>
+
+    <div class="admin-content">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.8rem">
+        <span style="font-size:.85rem;color:var(--text-2)" id="menuCount">Loading...</span>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <div style="position:relative">
+            <i class="fas fa-search" style="position:absolute;left:.8rem;top:50%;transform:translateY(-50%);color:var(--grey-3);font-size:.8rem"></i>
+            <input type="text" class="form-control" id="menuSearch" placeholder="Search pizzas..." style="padding-left:2.4rem;padding-top:.55rem;padding-bottom:.55rem;border-radius:50px"/>
+          </div>
+          <select class="form-control" id="menuFilter" style="width:auto;padding:.55rem 1rem;border-radius:50px">
+            <option value="">All</option>
+            <option value="non-veg">Non-Veg</option>
+            <option value="veg">Veg</option>
+            <option value="featured">Featured</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="revenue-chart" style="background:var(--card-bg)">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Pizza</th><th>Category</th><th>Price</th><th>Rating</th><th>Available</th><th>Featured</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="menuTbody">
+              <tr><td colspan="7" style="text-align:center;padding:3rem"><div class="loader" style="margin:0 auto"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="toast-container"></div>
+<script src="/js/app.js"></script>
+<script>
+  window.addEventListener('load', () => setTimeout(() => document.getElementById('pageLoader').classList.add('hidden'), 600));
+  if (!Auth.isLoggedIn() || !Auth.isAdmin()) window.location.href = '/auth.html';
+
+  let allPizzas = [];
+
+  async function loadMenu() {
+    try {
+      const res  = await fetch('/api/pizzas?limit=100', { headers: { 'Authorization': `Bearer ${Auth.getToken()}` } });
+      const data = await res.json();
+      allPizzas  = data.data || [];
+      renderMenu(allPizzas);
+    } catch { showToast('Failed to load menu', 'error'); }
+  }
+
+  function renderMenu(pizzas) {
+    document.getElementById('menuCount').textContent = `${pizzas.length} pizzas`;
+    const tbody = document.getElementById('menuTbody');
+    if (!pizzas.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:3rem;color:var(--text-2)">No pizzas found</td></tr>';
+      return;
+    }
+    tbody.innerHTML = pizzas.map(p => `
+      <tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:.8rem">
+            <img src="${p.image}" alt="${p.name}" width="48" height="48" style="border-radius:8px;object-fit:cover"
+                 onerror="this.src='https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=100&q=60'"/>
+            <div>
+              <div style="font-weight:700">${p.name}</div>
+              <div style="font-size:.75rem;color:var(--text-2);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.description}</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="status-badge ${p.category==='veg'?'badge-veg':'badge-nonveg'}">${p.category==='veg'?'🌿 Veg':'🍖 Non-Veg'}</span></td>
+        <td style="font-weight:700;color:var(--red)">RM ${parseFloat(p.price).toFixed(2)}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:.3rem">
+            <i class="fas fa-star" style="color:var(--yellow);font-size:.8rem"></i>
+            <span style="font-weight:700">${parseFloat(p.avg_rating||0).toFixed(1)}</span>
+            <span style="font-size:.75rem;color:var(--text-2)">(${p.total_reviews||0})</span>
+          </div>
+        </td>
+        <td>
+          <label class="toggle-switch" title="Toggle availability">
+            <input type="checkbox" ${p.is_available?'checked':''} onchange="toggleAvailability(${p.id}, this.checked)"/>
+            <span class="toggle-slider"></span>
+          </label>
+        </td>
+        <td>
+          <label class="toggle-switch" title="Toggle featured">
+            <input type="checkbox" ${p.is_featured?'checked':''} onchange="toggleFeatured(${p.id}, this.checked)"/>
+            <span class="toggle-slider"></span>
+          </label>
+        </td>
+        <td>
+          <div style="display:flex;gap:.4rem">
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="openModal(${p.id})" title="Edit"><i class="fas fa-edit"></i></button>
+            <button class="btn btn-ghost btn-sm btn-icon" style="color:var(--red)" onclick="confirmDelete(${p.id}, '${p.name.replace(/'/g,"\\'")}')"><i class="fas fa-trash"></i></button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  // Search + filter
+  function filterMenu() {
+    const search = document.getElementById('menuSearch').value.toLowerCase();
+    const filter = document.getElementById('menuFilter').value;
+    let filtered = allPizzas;
+    if (search)        filtered = filtered.filter(p => p.name.toLowerCase().includes(search) || p.description.toLowerCase().includes(search));
+    if (filter === 'veg')      filtered = filtered.filter(p => p.category === 'veg');
+    if (filter === 'non-veg')  filtered = filtered.filter(p => p.category === 'non-veg');
+    if (filter === 'featured') filtered = filtered.filter(p => p.is_featured);
+    renderMenu(filtered);
+  }
+  document.getElementById('menuSearch').addEventListener('input', filterMenu);
+  document.getElementById('menuFilter').addEventListener('change', filterMenu);
+
+  // Modal
+  function openModal(id = null) {
+    document.getElementById('editId').value = id || '';
+    document.getElementById('modalTitle').textContent = id ? 'Edit Pizza' : 'Add New Pizza';
+    if (id) {
+      const p = allPizzas.find(x => x.id == id);
+      if (p) {
+        document.getElementById('fName').value      = p.name;
+        document.getElementById('fPrice').value     = p.price;
+        document.getElementById('fDesc').value      = p.description;
+        document.getElementById('fCategory').value  = p.category;
+        document.getElementById('fImage').value     = p.image || '';
+        document.getElementById('fFeatured').checked= p.is_featured;
+        document.getElementById('fAvailable').checked = p.is_available;
+        document.getElementById('imgPreview').src   = p.image || '';
+      }
+    } else {
+      document.getElementById('fName').value = '';
+      document.getElementById('fPrice').value = '';
+      document.getElementById('fDesc').value = '';
+      document.getElementById('fCategory').value = 'non-veg';
+      document.getElementById('fImage').value = '';
+      document.getElementById('fFeatured').checked = false;
+      document.getElementById('fAvailable').checked = true;
+      document.getElementById('imgPreview').src = 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80';
+    }
+    document.getElementById('pizzaModal').classList.add('open');
+  }
+
+  document.getElementById('fImage').addEventListener('input', e => {
+    document.getElementById('imgPreview').src = e.target.value || 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80';
+  });
+
+  function closeModal() { document.getElementById('pizzaModal').classList.remove('open'); }
+  document.getElementById('pizzaModal').addEventListener('click', e => { if (e.target === document.getElementById('pizzaModal')) closeModal(); });
+
+  async function savePizza() {
+    const id    = document.getElementById('editId').value;
+    const name  = document.getElementById('fName').value.trim();
+    const price = parseFloat(document.getElementById('fPrice').value);
+    const desc  = document.getElementById('fDesc').value.trim();
+
+    if (!name || !price || !desc) { showToast('Please fill required fields', 'error'); return; }
+
+    const body = {
+      name, price, description: desc,
+      category:     document.getElementById('fCategory').value,
+      image:        document.getElementById('fImage').value.trim() || null,
+      is_featured:  document.getElementById('fFeatured').checked ? 1 : 0,
+      is_available: document.getElementById('fAvailable').checked ? 1 : 0
+    };
+
+    document.getElementById('saveText').style.display    = 'none';
+    document.getElementById('saveSpinner').style.display = 'inline-flex';
+
+    try {
+      const data = await apiCall(id ? 'PUT' : 'POST', id ? `/pizzas/${id}` : '/pizzas', body);
+      if (data.success) {
+        showToast(id ? 'Pizza updated!' : 'Pizza added!', 'success');
+        closeModal();
+        loadMenu();
+      } else {
+        showToast(data.message || 'Failed to save', 'error');
+      }
+    } catch { showToast('Server error', 'error'); }
+    finally {
+      document.getElementById('saveText').style.display    = 'inline-flex';
+      document.getElementById('saveSpinner').style.display = 'none';
+    }
+  }
+
+  async function toggleAvailability(id, available) {
+    await apiCall('PUT', `/pizzas/${id}`, { is_available: available ? 1 : 0 });
+    showToast(available ? 'Pizza now available' : 'Pizza hidden from menu', available ? 'success' : 'info');
+  }
+
+  async function toggleFeatured(id, featured) {
+    await apiCall('PUT', `/pizzas/${id}`, { is_featured: featured ? 1 : 0 });
+    showToast(featured ? 'Pizza marked as featured' : 'Feature removed', 'success');
+  }
+
+  function confirmDelete(id, name) {
+    document.getElementById('deletePizzaName').textContent = name;
+    document.getElementById('confirmDeleteBtn').onclick    = async () => {
+      const data = await apiCall('DELETE', `/pizzas/${id}`);
+      if (data.success) { showToast('Pizza removed from menu', 'success'); loadMenu(); }
+      document.getElementById('deleteModal').classList.remove('open');
+    };
+    document.getElementById('deleteModal').classList.add('open');
+  }
+
+  loadMenu();
+</script>
+</body>
+</html>

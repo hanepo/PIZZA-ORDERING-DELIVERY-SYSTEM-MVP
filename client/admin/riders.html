@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Riders — Pizza Palace Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="/css/style.css"/>
+</head>
+<body>
+
+<div class="page-loader" id="pageLoader"><i class="fas fa-pizza-slice"></i><p>Loading...</p></div>
+
+<!-- Add/Edit Rider Modal -->
+<div class="modal-overlay" id="riderModal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <h3 class="modal-title" id="riderModalTitle">Add Rider</h3>
+      <button class="modal-close" onclick="closeRiderModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="rEditId"/>
+      <div class="form-group">
+        <label class="form-label">Full Name *</label>
+        <input type="text" class="form-control" id="rName" placeholder="Ahmad bin Ali"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone *</label>
+        <input type="tel" class="form-control" id="rPhone" placeholder="+60 12-345 6789"/>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Vehicle Number *</label>
+          <input type="text" class="form-control" id="rVehicleNumber" placeholder="JKA 1234"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Vehicle Type</label>
+          <select class="form-control" id="rVehicleType">
+            <option value="motorcycle">Motorcycle</option>
+            <option value="bicycle">Bicycle</option>
+            <option value="car">Car</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select class="form-control" id="rStatus">
+          <option value="available">Available</option>
+          <option value="busy">Busy</option>
+          <option value="offline">Offline</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeRiderModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveRider()"><i class="fas fa-save"></i> Save Rider</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <h3 class="modal-title">Remove Rider?</h3>
+      <button class="modal-close" onclick="document.getElementById('deleteModal').classList.remove('open')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <p>Remove <strong id="deleteRiderName"></strong> from the system? This cannot be undone.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('deleteModal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" style="background:var(--red)" id="confirmDeleteBtn">Remove</button>
+    </div>
+  </div>
+</div>
+
+<div class="admin-layout">
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="sidebar-logo"><i class="fas fa-pizza-slice"></i><span>Pizza Palace</span></div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-section">Main</div>
+      <a href="/admin/dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+      <a href="/admin/orders.html"><i class="fas fa-receipt"></i> Orders</a>
+      <div class="sidebar-section">Manage</div>
+      <a href="/admin/menu.html"><i class="fas fa-pizza-slice"></i> Pizza Menu</a>
+      <a href="/admin/riders.html" class="active"><i class="fas fa-motorcycle"></i> Riders</a>
+      <div class="sidebar-section">Other</div>
+      <a href="/"><i class="fas fa-store"></i> View Website</a>
+    </nav>
+    <div class="sidebar-footer">
+      <button onclick="Auth.clear();window.location.href='/auth.html'" style="background:rgba(230,57,70,.15);border:1px solid rgba(230,57,70,.2);color:rgba(255,255,255,.6);padding:.4rem 1rem;border-radius:6px;font-size:.75rem;cursor:pointer;width:100%"><i class="fas fa-sign-out-alt"></i> Logout</button>
+    </div>
+  </aside>
+
+  <main class="admin-main">
+    <div class="admin-topbar">
+      <div style="display:flex;align-items:center;gap:1rem">
+        <button class="btn btn-ghost btn-icon" onclick="document.getElementById('adminSidebar').classList.toggle('open')"><i class="fas fa-bars"></i></button>
+        <div style="font-weight:800">Riders</div>
+      </div>
+      <div style="display:flex;gap:.8rem;align-items:center">
+        <button class="dark-toggle" id="darkToggle"><i class="fas fa-moon"></i></button>
+        <button class="btn btn-primary" onclick="openRiderModal()"><i class="fas fa-plus"></i> Add Rider</button>
+      </div>
+    </div>
+
+    <div class="admin-content">
+      <!-- Summary cards -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem">
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:rgba(45,106,79,.1);color:#2d6a4f"><i class="fas fa-circle"></i></div>
+          <div class="stat-card-value" style="color:#2d6a4f" id="countAvail">—</div>
+          <div class="stat-card-label">Available</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:rgba(244,162,97,.1);color:var(--orange)"><i class="fas fa-motorcycle"></i></div>
+          <div class="stat-card-value" style="color:var(--orange)" id="countBusy">—</div>
+          <div class="stat-card-label">On Delivery</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:rgba(108,117,125,.1);color:var(--grey-3)"><i class="fas fa-circle"></i></div>
+          <div class="stat-card-value" style="color:var(--grey-3)" id="countOffline">—</div>
+          <div class="stat-card-label">Offline</div>
+        </div>
+      </div>
+
+      <div class="revenue-chart" style="background:var(--card-bg)">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Rider</th><th>Phone</th><th>Vehicle</th><th>Status</th><th>Location</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="ridersTbody">
+              <tr><td colspan="6" style="text-align:center;padding:3rem"><div class="loader" style="margin:0 auto"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="toast-container"></div>
+<script src="/js/app.js"></script>
+<script>
+  window.addEventListener('load', () => setTimeout(() => document.getElementById('pageLoader').classList.add('hidden'), 600));
+  if (!Auth.isLoggedIn() || !Auth.isAdmin()) window.location.href = '/auth.html';
+
+  let allRiders = [];
+
+  async function loadRiders() {
+    try {
+      const res  = await fetch('/api/riders', { headers: { 'Authorization': `Bearer ${Auth.getToken()}` } });
+      const data = await res.json();
+      allRiders  = data.data || [];
+      renderRiders(allRiders);
+    } catch { showToast('Failed to load riders', 'error'); }
+  }
+
+  function renderRiders(riders) {
+    document.getElementById('countAvail').textContent   = riders.filter(r => r.status === 'available').length;
+    document.getElementById('countBusy').textContent    = riders.filter(r => r.status === 'busy').length;
+    document.getElementById('countOffline').textContent = riders.filter(r => r.status === 'offline').length;
+
+    const tbody = document.getElementById('ridersTbody');
+    if (!riders.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:3rem;color:var(--text-2)"><i class="fas fa-motorcycle" style="font-size:2rem;opacity:.3;display:block;margin-bottom:.8rem"></i>No riders added yet</td></tr>';
+      return;
+    }
+
+    const statusColor = { available: '#2d6a4f', busy: 'var(--orange)', offline: 'var(--grey-3)' };
+    tbody.innerHTML = riders.map(r => `
+      <tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:.8rem">
+            <div style="width:40px;height:40px;border-radius:50%;background:var(--red);display:flex;align-items:center;justify-content:center;color:var(--white);font-weight:800;flex-shrink:0">
+              ${r.name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div style="font-weight:700">${r.name}</div>
+              <div style="font-size:.75rem;color:var(--text-2)">#${r.id}</div>
+            </div>
+          </div>
+        </td>
+        <td><a href="tel:${r.phone}" style="color:var(--text)">${r.phone || '—'}</a></td>
+        <td>
+          <div style="font-weight:600">${r.vehicle_number || '—'}</div>
+          <div style="font-size:.75rem;color:var(--text-2);text-transform:capitalize">${r.vehicle_type || 'motorcycle'}</div>
+        </td>
+        <td>
+          <select style="padding:.35rem .7rem;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--bg);color:${statusColor[r.status]||'var(--text)'};font-size:.8rem;font-weight:700;cursor:pointer"
+                  onchange="updateRiderStatus(${r.id}, this.value)">
+            <option value="available" ${r.status==='available'?'selected':''}>🟢 Available</option>
+            <option value="busy"      ${r.status==='busy'     ?'selected':''}>🟠 Busy</option>
+            <option value="offline"   ${r.status==='offline'  ?'selected':''}>⚫ Offline</option>
+          </select>
+        </td>
+        <td style="font-size:.78rem;color:var(--text-2)">
+          ${r.current_lat && r.current_lng
+            ? `<span title="${r.current_lat}, ${r.current_lng}"><i class="fas fa-map-marker-alt" style="color:var(--red)"></i> ${parseFloat(r.current_lat).toFixed(4)}, ${parseFloat(r.current_lng).toFixed(4)}</span>`
+            : '—'
+          }
+        </td>
+        <td>
+          <div style="display:flex;gap:.4rem">
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="openRiderModal(${r.id})" title="Edit"><i class="fas fa-edit"></i></button>
+            <button class="btn btn-ghost btn-sm btn-icon" style="color:var(--red)" onclick="confirmDelete(${r.id},'${r.name.replace(/'/g,"\\'")}')"><i class="fas fa-trash"></i></button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function openRiderModal(id = null) {
+    document.getElementById('rEditId').value = id || '';
+    document.getElementById('riderModalTitle').textContent = id ? 'Edit Rider' : 'Add Rider';
+    if (id) {
+      const r = allRiders.find(x => x.id == id);
+      if (r) {
+        document.getElementById('rName').value          = r.name;
+        document.getElementById('rPhone').value         = r.phone || '';
+        document.getElementById('rVehicleNumber').value = r.vehicle_number || '';
+        document.getElementById('rVehicleType').value   = r.vehicle_type || 'motorcycle';
+        document.getElementById('rStatus').value        = r.status || 'available';
+      }
+    } else {
+      document.getElementById('rName').value  = '';
+      document.getElementById('rPhone').value = '';
+      document.getElementById('rVehicleNumber').value = '';
+      document.getElementById('rVehicleType').value   = 'motorcycle';
+      document.getElementById('rStatus').value        = 'available';
+    }
+    document.getElementById('riderModal').classList.add('open');
+  }
+
+  function closeRiderModal() { document.getElementById('riderModal').classList.remove('open'); }
+  document.getElementById('riderModal').addEventListener('click', e => { if (e.target === document.getElementById('riderModal')) closeRiderModal(); });
+
+  async function saveRider() {
+    const id   = document.getElementById('rEditId').value;
+    const name = document.getElementById('rName').value.trim();
+    const phone = document.getElementById('rPhone').value.trim();
+    const vNum = document.getElementById('rVehicleNumber').value.trim();
+
+    if (!name || !phone || !vNum) { showToast('Please fill all required fields', 'error'); return; }
+
+    const body = {
+      name, phone,
+      vehicle_number: vNum,
+      vehicle_type:   document.getElementById('rVehicleType').value,
+      status:         document.getElementById('rStatus').value
+    };
+
+    try {
+      const data = await apiCall(id ? 'PUT' : 'POST', id ? `/riders/${id}` : '/riders', body);
+      if (data.success) {
+        showToast(id ? 'Rider updated!' : 'Rider added!', 'success');
+        closeRiderModal();
+        loadRiders();
+      } else {
+        showToast(data.message || 'Failed to save', 'error');
+      }
+    } catch { showToast('Server error', 'error'); }
+  }
+
+  async function updateRiderStatus(id, status) {
+    const data = await apiCall('PUT', `/riders/${id}`, { status });
+    if (data.success) showToast(`Rider status → ${status}`, 'success');
+    loadRiders();
+  }
+
+  function confirmDelete(id, name) {
+    document.getElementById('deleteRiderName').textContent = name;
+    document.getElementById('confirmDeleteBtn').onclick    = async () => {
+      const data = await apiCall('DELETE', `/riders/${id}`);
+      if (data.success) { showToast('Rider removed', 'success'); loadRiders(); }
+      document.getElementById('deleteModal').classList.remove('open');
+    };
+    document.getElementById('deleteModal').classList.add('open');
+  }
+
+  loadRiders();
+  setInterval(loadRiders, 30000);
+</script>
+</body>
+</html>

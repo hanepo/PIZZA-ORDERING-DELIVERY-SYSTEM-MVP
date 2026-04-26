@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Orders — Pizza Palace Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="/css/style.css"/>
+  <style>
+    .status-tabs { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .status-tab { padding: .45rem 1rem; border-radius: 50px; font-size: .8rem; font-weight: 700; border: 1.5px solid var(--border); background: none; cursor: pointer; color: var(--text-2); transition: var(--t); }
+    .status-tab.active { background: var(--red); color: var(--white); border-color: var(--red); }
+    .order-detail-panel { background: var(--bg-2); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 1.5rem; margin-top: 1rem; }
+    select.status-select { padding: .35rem .7rem; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: var(--bg); color: var(--text); font-size: .8rem; font-weight: 600; cursor: pointer; }
+    select.status-select:focus { outline: none; border-color: var(--red); }
+    .rider-assign { padding: .35rem .7rem; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: var(--bg); color: var(--text); font-size: .8rem; cursor: pointer; min-width: 140px; }
+    .rider-assign:focus { outline: none; border-color: var(--orange); }
+  </style>
+</head>
+<body>
+
+<div class="page-loader" id="pageLoader"><i class="fas fa-pizza-slice"></i><p>Loading...</p></div>
+
+<div class="admin-layout">
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="sidebar-logo"><i class="fas fa-pizza-slice"></i><span>Pizza Palace</span></div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-section">Main</div>
+      <a href="/admin/dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+      <a href="/admin/orders.html" class="active"><i class="fas fa-receipt"></i> Orders</a>
+      <div class="sidebar-section">Manage</div>
+      <a href="/admin/menu.html"><i class="fas fa-pizza-slice"></i> Pizza Menu</a>
+      <a href="/admin/riders.html"><i class="fas fa-motorcycle"></i> Riders</a>
+      <div class="sidebar-section">Other</div>
+      <a href="/"><i class="fas fa-store"></i> View Website</a>
+    </nav>
+    <div class="sidebar-footer">
+      <button onclick="Auth.clear();window.location.href='/auth.html'" style="background:rgba(230,57,70,.15);border:1px solid rgba(230,57,70,.2);color:rgba(255,255,255,.6);padding:.4rem 1rem;border-radius:6px;font-size:.75rem;cursor:pointer;width:100%"><i class="fas fa-sign-out-alt"></i> Logout</button>
+    </div>
+  </aside>
+
+  <main class="admin-main">
+    <div class="admin-topbar">
+      <div style="display:flex;align-items:center;gap:1rem">
+        <button class="btn btn-ghost btn-icon" onclick="document.getElementById('adminSidebar').classList.toggle('open')"><i class="fas fa-bars"></i></button>
+        <div style="font-weight:800">Orders Management</div>
+      </div>
+      <button class="dark-toggle" id="darkToggle"><i class="fas fa-moon"></i></button>
+    </div>
+
+    <div class="admin-content">
+      <!-- Status filter tabs -->
+      <div class="status-tabs" id="statusTabs">
+        <button class="status-tab active" data-status="">All Orders</button>
+        <button class="status-tab" data-status="placed">Placed</button>
+        <button class="status-tab" data-status="preparing">Preparing</button>
+        <button class="status-tab" data-status="out_for_delivery">Out for Delivery</button>
+        <button class="status-tab" data-status="delivered">Delivered</button>
+        <button class="status-tab" data-status="cancelled">Cancelled</button>
+      </div>
+
+      <!-- Search + count -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.8rem">
+        <span style="font-size:.85rem;color:var(--text-2)" id="ordersCount">Loading...</span>
+        <div style="display:flex;gap:.6rem;align-items:center">
+          <button class="btn btn-ghost btn-sm" onclick="loadOrders()"><i class="fas fa-sync"></i> Refresh</button>
+        </div>
+      </div>
+
+      <!-- Orders table -->
+      <div class="revenue-chart" style="background:var(--card-bg)">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Order #</th>
+                <th>Customer</th>
+                <th>Address</th>
+                <th>Items / Total</th>
+                <th>Status</th>
+                <th>Rider</th>
+                <th>Time</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="ordersTbody">
+              <tr><td colspan="8" style="text-align:center;padding:3rem"><div class="loader" style="margin:0 auto"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Pagination -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.5rem;border-top:1px solid var(--border);flex-wrap:wrap;gap:.5rem">
+          <span style="font-size:.82rem;color:var(--text-2)" id="paginationInfo"></span>
+          <div style="display:flex;gap:.4rem" id="paginationBtns"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="toast-container"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+<script src="/js/app.js"></script>
+<script>
+  window.addEventListener('load', () => setTimeout(() => document.getElementById('pageLoader').classList.add('hidden'), 600));
+  if (!Auth.isLoggedIn() || !Auth.isAdmin()) window.location.href = '/auth.html';
+
+  let currentStatus = '';
+  let currentPage   = 1;
+  let availableRiders = [];
+
+  // Socket.IO for live updates
+  try {
+    const socket = io();
+    socket.on('connect', () => socket.emit('join-admin'));
+    socket.on('new-order', () => { loadOrders(); showToast('New order received!', 'info'); });
+    socket.on('order-status-update', () => loadOrders());
+  } catch {}
+
+  // Status tabs
+  document.getElementById('statusTabs').addEventListener('click', e => {
+    const btn = e.target.closest('.status-tab');
+    if (!btn) return;
+    document.querySelectorAll('.status-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentStatus = btn.dataset.status;
+    currentPage   = 1;
+    loadOrders();
+  });
+
+  async function loadRiders() {
+    try {
+      const res  = await fetch('/api/riders/available', {
+        headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+      });
+      const data = await res.json();
+      availableRiders = data.data || [];
+    } catch {}
+  }
+
+  async function loadOrders() {
+    const params = new URLSearchParams({ page: currentPage, limit: 15 });
+    if (currentStatus) params.set('status', currentStatus);
+
+    try {
+      const res  = await fetch(`/api/admin/orders?${params}`, {
+        headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+      });
+      const data = await res.json();
+      if (!data.success) return;
+
+      const orders = data.data;
+      const total  = data.total || orders.length;
+      document.getElementById('ordersCount').textContent = `${total} orders`;
+
+      if (!orders.length) {
+        document.getElementById('ordersTbody').innerHTML =
+          '<tr><td colspan="8" style="text-align:center;padding:3rem;color:var(--text-2)"><i class="fas fa-receipt" style="font-size:2rem;opacity:.3;display:block;margin-bottom:.8rem"></i>No orders found</td></tr>';
+        document.getElementById('paginationInfo').textContent = '';
+        document.getElementById('paginationBtns').innerHTML  = '';
+        return;
+      }
+
+      const riderOptions = availableRiders.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+
+      document.getElementById('ordersTbody').innerHTML = orders.map(o => `
+        <tr>
+          <td style="font-weight:800">#${o.id}</td>
+          <td>
+            <div style="font-weight:700">${o.customer_name}</div>
+            <div style="font-size:.75rem;color:var(--text-2)">${o.customer_phone || ''}</div>
+          </td>
+          <td style="max-width:180px;white-space:normal;font-size:.82rem">${o.address}</td>
+          <td>
+            <div style="font-weight:700;color:var(--red)">RM ${parseFloat(o.total_price).toFixed(2)}</div>
+            <div style="font-size:.75rem;color:var(--text-2)">${o.item_count || '—'} item(s)</div>
+          </td>
+          <td>
+            <select class="status-select" onchange="updateStatus(${o.id}, this.value)">
+              <option value="placed"           ${o.status==='placed'           ?'selected':''}>Placed</option>
+              <option value="preparing"        ${o.status==='preparing'        ?'selected':''}>Preparing</option>
+              <option value="out_for_delivery" ${o.status==='out_for_delivery' ?'selected':''}>Out for Delivery</option>
+              <option value="delivered"        ${o.status==='delivered'        ?'selected':''}>Delivered</option>
+              <option value="cancelled"        ${o.status==='cancelled'        ?'selected':''}>Cancelled</option>
+            </select>
+          </td>
+          <td>
+            ${o.rider_name
+              ? `<div style="font-size:.82rem;font-weight:600"><i class="fas fa-motorcycle" style="color:var(--orange)"></i> ${o.rider_name}</div>`
+              : `<select class="rider-assign" onchange="assignRider(${o.id}, this.value)">
+                  <option value="">Assign Rider...</option>
+                  ${riderOptions}
+                 </select>`
+            }
+          </td>
+          <td style="font-size:.78rem;color:var(--text-2)">${formatDate(o.created_at)}</td>
+          <td>
+            <a href="/tracking.html?id=${o.id}" target="_blank" class="btn btn-ghost btn-sm" title="Track"><i class="fas fa-map-marker-alt"></i></a>
+          </td>
+        </tr>
+      `).join('');
+
+      // Pagination
+      const pages = Math.ceil(total / 15);
+      document.getElementById('paginationInfo').textContent = `Page ${currentPage} of ${pages}`;
+      let btns = '';
+      if (currentPage > 1)    btns += `<button class="btn btn-ghost btn-sm" onclick="goPage(${currentPage-1})">← Prev</button>`;
+      if (currentPage < pages) btns += `<button class="btn btn-ghost btn-sm" onclick="goPage(${currentPage+1})">Next →</button>`;
+      document.getElementById('paginationBtns').innerHTML = btns;
+    } catch {}
+  }
+
+  function goPage(p) { currentPage = p; loadOrders(); }
+
+  async function updateStatus(orderId, status) {
+    try {
+      const data = await apiCall('PUT', `/orders/${orderId}/status`, { status });
+      if (data.success) showToast(`Order #${orderId} → ${statusLabel(status)}`, 'success');
+      else showToast(data.message || 'Failed to update', 'error');
+    } catch { showToast('Error updating status', 'error'); }
+  }
+
+  async function assignRider(orderId, riderId) {
+    if (!riderId) return;
+    try {
+      const data = await apiCall('PUT', `/orders/${orderId}/status`, { status: 'out_for_delivery', rider_id: riderId });
+      if (data.success) { showToast(`Rider assigned to #${orderId}`, 'success'); loadOrders(); }
+      else showToast(data.message || 'Failed', 'error');
+    } catch { showToast('Error assigning rider', 'error'); }
+  }
+
+  loadRiders().then(() => loadOrders());
+  setInterval(loadOrders, 30000);
+</script>
+</body>
+</html>

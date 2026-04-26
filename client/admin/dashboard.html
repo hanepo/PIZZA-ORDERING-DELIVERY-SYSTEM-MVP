@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Dashboard — Pizza Palace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="/css/style.css"/>
+  <style>
+    .stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 1.2rem; margin-bottom: 2rem; }
+    .new-order-badge { position: fixed; top: 1rem; right: 1.5rem; z-index: 9999; background: var(--red); color: var(--white); padding: .8rem 1.4rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-md); font-weight: 700; font-size: .9rem; transform: translateY(-120%); transition: transform .4s ease; display: flex; align-items: center; gap: .7rem; cursor: pointer; }
+    .new-order-badge.show { transform: translateY(0); }
+    .revenue-chart { background: var(--card-bg); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 1.5rem; }
+    .chart-bars { display: flex; align-items: flex-end; gap: .5rem; height: 160px; margin-top: 1rem; }
+    .chart-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .4rem; height: 100%; justify-content: flex-end; }
+    .chart-bar { width: 100%; background: linear-gradient(to top, var(--red), var(--orange)); border-radius: 4px 4px 0 0; min-height: 4px; transition: height .8s ease; }
+    .chart-bar:hover { opacity: .8; }
+    .chart-label { font-size: .7rem; color: var(--text-2); text-align: center; }
+    .chart-val { font-size: .68rem; font-weight: 700; color: var(--text); }
+    .best-selling { background: var(--card-bg); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 1.5rem; }
+    .best-item { display: flex; align-items: center; gap: .9rem; padding: .7rem 0; border-bottom: 1px solid var(--border); }
+    .best-item:last-child { border-bottom: none; }
+    .best-item img { width: 46px; height: 46px; border-radius: var(--radius-sm); object-fit: cover; }
+    .best-item-info { flex: 1; }
+    .best-item-name { font-weight: 700; font-size: .9rem; }
+    .best-item-orders { font-size: .78rem; color: var(--text-2); }
+    .best-item-revenue { font-weight: 800; color: var(--red); font-size: .95rem; }
+    .admin-mobile-toggle { display: none; position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 200; width: 50px; height: 50px; border-radius: 50%; background: var(--red); color: var(--white); border: none; font-size: 1.2rem; cursor: pointer; box-shadow: var(--shadow-md); }
+  </style>
+</head>
+<body>
+
+<div class="page-loader" id="pageLoader"><i class="fas fa-pizza-slice"></i><p>Loading Dashboard...</p></div>
+
+<!-- New order notification badge -->
+<div class="new-order-badge" id="newOrderBadge" onclick="window.location.href='/admin/orders.html'">
+  <i class="fas fa-bell"></i>
+  <span id="newOrderText">New order received!</span>
+  <button style="background:rgba(255,255,255,.2);border:none;color:var(--white);padding:.2rem .5rem;border-radius:4px;cursor:pointer;font-size:.75rem" onclick="event.stopPropagation();dismissNewOrder()">✕</button>
+</div>
+
+<!-- ADMIN LAYOUT -->
+<div class="admin-layout">
+
+  <!-- Sidebar -->
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="sidebar-logo"><i class="fas fa-pizza-slice"></i><span>Pizza Palace</span></div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-section">Main</div>
+      <a href="/admin/dashboard.html" class="active"><i class="fas fa-chart-line"></i> Dashboard</a>
+      <a href="/admin/orders.html"><i class="fas fa-receipt"></i> Orders</a>
+      <div class="sidebar-section">Manage</div>
+      <a href="/admin/menu.html"><i class="fas fa-pizza-slice"></i> Pizza Menu</a>
+      <a href="/admin/riders.html"><i class="fas fa-motorcycle"></i> Riders</a>
+      <div class="sidebar-section">Other</div>
+      <a href="/"><i class="fas fa-store"></i> View Website</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div style="display:flex;align-items:center;gap:.7rem;color:rgba(255,255,255,.5);font-size:.82rem">
+        <div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center"><i class="fas fa-user"></i></div>
+        <div><div style="color:var(--white);font-weight:700" id="sidebarAdminName">Admin</div><div>Administrator</div></div>
+      </div>
+      <button onclick="Auth.clear();window.location.href='/auth.html'" style="background:rgba(230,57,70,.15);border:1px solid rgba(230,57,70,.2);color:rgba(255,255,255,.6);padding:.4rem 1rem;border-radius:6px;font-size:.75rem;cursor:pointer;margin-top:.8rem;width:100%"><i class="fas fa-sign-out-alt"></i> Logout</button>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="admin-main">
+    <!-- Top bar -->
+    <div class="admin-topbar">
+      <div style="display:flex;align-items:center;gap:1rem">
+        <button class="btn btn-ghost btn-icon" onclick="document.getElementById('adminSidebar').classList.toggle('open')"><i class="fas fa-bars"></i></button>
+        <div>
+          <div style="font-weight:800">Dashboard</div>
+          <div style="font-size:.75rem;color:var(--text-2)" id="topbarDate"></div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:1rem">
+        <button class="dark-toggle" id="darkToggle"><i class="fas fa-moon"></i></button>
+        <div style="display:flex;align-items:center;gap:.6rem;font-size:.85rem">
+          <div style="width:34px;height:34px;border-radius:50%;background:var(--red);display:flex;align-items:center;justify-content:center;color:var(--white)"><i class="fas fa-user"></i></div>
+          <span id="topbarAdminName" style="font-weight:600">Admin</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-content">
+
+      <!-- Stat cards -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:rgba(230,57,70,.1);color:var(--red)"><i class="fas fa-receipt"></i></div>
+          <div class="stat-card-value text-red" id="statToday">—</div>
+          <div class="stat-card-label">Today's Orders</div>
+          <div class="stat-card-trend"><i class="fas fa-arrow-up trend-up"></i> <span id="trendOrders">—</span></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:rgba(244,162,97,.1);color:var(--orange)"><i class="fas fa-dollar-sign"></i></div>
+          <div class="stat-card-value" id="statRevenue" style="color:var(--orange)">—</div>
+          <div class="stat-card-label">Today's Revenue</div>
+          <div class="stat-card-trend trend-up" id="trendRevenue">RM 0.00</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:rgba(45,106,79,.1);color:#2d6a4f"><i class="fas fa-motorcycle"></i></div>
+          <div class="stat-card-value" style="color:#2d6a4f" id="statActive">—</div>
+          <div class="stat-card-label">Active Deliveries</div>
+          <div class="stat-card-trend"><i class="fas fa-circle" style="color:#2d6a4f;font-size:.6rem"></i> Live</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:rgba(2,119,189,.1);color:var(--info)"><i class="fas fa-users"></i></div>
+          <div class="stat-card-value" style="color:var(--info)" id="statCustomers">—</div>
+          <div class="stat-card-label">Total Customers</div>
+          <div class="stat-card-trend trend-up" id="trendCustomers">—</div>
+        </div>
+      </div>
+
+      <!-- Charts + Best Selling -->
+      <div class="grid-2" style="margin-bottom:2rem">
+        <!-- Revenue chart -->
+        <div class="revenue-chart">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+            <h3 style="font-weight:800;font-size:1rem">Revenue (Last 7 Days)</h3>
+            <span style="font-size:.78rem;color:var(--text-2)">RM</span>
+          </div>
+          <div class="chart-bars" id="revenueChart">
+            <div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--grey-3)"><div class="loader"></div></div>
+          </div>
+        </div>
+
+        <!-- Best selling -->
+        <div class="best-selling">
+          <h3 style="font-weight:800;font-size:1rem;margin-bottom:1rem">Best Selling Pizzas</h3>
+          <div id="bestSellingList"><div style="display:flex;align-items:center;justify-content:center;padding:2rem"><div class="loader"></div></div></div>
+        </div>
+      </div>
+
+      <!-- Recent orders -->
+      <div class="revenue-chart">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+          <h3 style="font-weight:800;font-size:1rem">Recent Orders</h3>
+          <a href="/admin/orders.html" class="btn btn-ghost btn-sm">View All <i class="fas fa-arrow-right"></i></a>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Time</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="recentOrdersTbody">
+              <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-2)"><div class="loader" style="margin:0 auto"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<div id="toast-container"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+<script src="/js/app.js"></script>
+<script>
+  window.addEventListener('load', () => setTimeout(() => document.getElementById('pageLoader').classList.add('hidden'), 600));
+
+  // Admin guard
+  if (!Auth.isLoggedIn() || !Auth.isAdmin()) {
+    window.location.href = '/auth.html';
+  }
+
+  const user = Auth.getUser();
+  document.getElementById('sidebarAdminName').textContent = user?.name?.split(' ')[0] || 'Admin';
+  document.getElementById('topbarAdminName').textContent  = user?.name?.split(' ')[0] || 'Admin';
+  document.getElementById('topbarDate').textContent       = new Date().toLocaleDateString('en-MY', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+  // Socket.IO for new orders
+  try {
+    const socket = io();
+    socket.on('connect', () => socket.emit('join-admin'));
+    socket.on('new-order', data => {
+      const badge = document.getElementById('newOrderBadge');
+      document.getElementById('newOrderText').textContent = `New order #${data.orderId} — ${formatPrice(data.total)}`;
+      badge.classList.add('show');
+      showToast(`New order received! #${data.orderId}`, 'info');
+      loadStats();
+      loadRecentOrders();
+    });
+  } catch {}
+
+  function dismissNewOrder() {
+    document.getElementById('newOrderBadge').classList.remove('show');
+  }
+
+  // Load stats
+  async function loadStats() {
+    try {
+      const res = await fetch('/api/admin/stats', {
+        headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+      });
+      const data = await res.json();
+      if (!data.success) return;
+      const s = data.data;
+      document.getElementById('statToday').textContent     = s.todayOrders    || 0;
+      document.getElementById('statRevenue').textContent   = 'RM ' + parseFloat(s.todayRevenue  || 0).toFixed(0);
+      document.getElementById('statActive').textContent    = s.activeDeliveries || 0;
+      document.getElementById('statCustomers').textContent = s.totalCustomers   || 0;
+      document.getElementById('trendOrders').textContent   = `+${s.todayOrders || 0} today`;
+    } catch {}
+  }
+
+  // Load analytics
+  async function loadAnalytics() {
+    try {
+      const res = await fetch('/api/admin/analytics', {
+        headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+      });
+      const data = await res.json();
+      if (!data.success) return;
+      const a = data.data;
+
+      // Revenue chart
+      const maxRev = Math.max(...a.dailyRevenue.map(d => d.revenue), 1);
+      document.getElementById('revenueChart').innerHTML = a.dailyRevenue.map(d => `
+        <div class="chart-bar-wrap">
+          <div class="chart-val">RM${Math.round(d.revenue)}</div>
+          <div class="chart-bar" style="height:${Math.max(4, (d.revenue / maxRev) * 140)}px" title="RM ${d.revenue}"></div>
+          <div class="chart-label">${new Date(d.date).toLocaleDateString('en-MY',{weekday:'short'})}</div>
+        </div>
+      `).join('');
+
+      // Best selling
+      document.getElementById('bestSellingList').innerHTML = a.bestSelling.slice(0, 5).map((p, i) => `
+        <div class="best-item">
+          <div style="font-size:.8rem;font-weight:800;color:var(--text-2);width:1.2rem;text-align:center">${i+1}</div>
+          <img src="${p.image}" alt="${p.name}" onerror="this.src='https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=100&q=60'"/>
+          <div class="best-item-info">
+            <div class="best-item-name">${p.name}</div>
+            <div class="best-item-orders">${p.total_orders} orders</div>
+          </div>
+          <div class="best-item-revenue">RM ${parseFloat(p.revenue || 0).toFixed(0)}</div>
+        </div>
+      `).join('');
+    } catch {}
+  }
+
+  // Load recent orders
+  async function loadRecentOrders() {
+    try {
+      const res = await fetch('/api/admin/orders?limit=8', {
+        headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+      });
+      const data = await res.json();
+      if (!data.success) return;
+      const tbody = document.getElementById('recentOrdersTbody');
+      if (!data.data.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-2)">No orders yet</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.data.map(o => `
+        <tr>
+          <td style="font-weight:700">#${o.id}</td>
+          <td>${o.customer_name}<br><small style="color:var(--text-2)">${o.customer_phone || ''}</small></td>
+          <td>${o.item_count || 1} item(s)</td>
+          <td style="font-weight:700;color:var(--red)">RM ${parseFloat(o.total_price).toFixed(2)}</td>
+          <td><span class="status-badge status-${o.status}">${statusLabel(o.status)}</span></td>
+          <td style="font-size:.8rem;color:var(--text-2)">${formatDate(o.created_at)}</td>
+          <td><a href="/admin/orders.html" class="btn btn-ghost btn-sm">View</a></td>
+        </tr>
+      `).join('');
+    } catch {}
+  }
+
+  loadStats();
+  loadAnalytics();
+  loadRecentOrders();
+
+  // Auto-refresh every 30 seconds
+  setInterval(() => { loadStats(); loadRecentOrders(); }, 30000);
+</script>
+</body>
+</html>

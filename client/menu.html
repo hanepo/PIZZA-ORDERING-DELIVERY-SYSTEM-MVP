@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Menu — Pizza Palace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="/css/style.css"/>
+  <style>
+    .filter-bar {
+      background: var(--card-bg); border-bottom: 1px solid var(--border);
+      position: sticky; top: var(--nav-h); z-index: 100;
+      padding: 1rem 5%;
+      display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    }
+    .filter-tabs { display: flex; gap: .4rem; }
+    .filter-tab {
+      padding: .45rem 1.1rem; border-radius: 50px; font-size: .8rem; font-weight: 700;
+      border: 1.5px solid var(--border); background: none; cursor: pointer; color: var(--text-2);
+      transition: var(--t);
+    }
+    .filter-tab.active, .filter-tab:hover { background: var(--red); color: var(--white); border-color: var(--red); }
+    .search-box { flex: 1; max-width: 320px; position: relative; }
+    .search-box input { width: 100%; padding: .55rem 1rem .55rem 2.4rem; border-radius: 50px; border: 1.5px solid var(--border); background: var(--bg); color: var(--text); font-size: .85rem; }
+    .search-box input:focus { outline: none; border-color: var(--red); }
+    .search-box i { position: absolute; left: .9rem; top: 50%; transform: translateY(-50%); color: var(--grey-3); font-size: .85rem; }
+    .sort-select { padding: .5rem 1rem; border-radius: 50px; border: 1.5px solid var(--border); background: var(--bg); color: var(--text); font-size: .82rem; font-weight: 600; cursor: pointer; }
+    .sort-select:focus { outline: none; border-color: var(--red); }
+    .pizza-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.5rem; }
+
+    /* Customization Modal extras */
+    .size-options { display: grid; grid-template-columns: repeat(3,1fr); gap: .6rem; }
+    .size-option { display: none; }
+    .size-option + label {
+      display: block; text-align: center; padding: .8rem .5rem;
+      border: 2px solid var(--border); border-radius: var(--radius-sm); cursor: pointer;
+      transition: var(--t); font-size: .85rem;
+    }
+    .size-option:checked + label { border-color: var(--red); background: rgba(230,57,70,.08); color: var(--red); }
+    .size-price { font-weight: 800; font-size: 1rem; display: block; }
+    .crust-options { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .crust-option { display: none; }
+    .crust-option + label {
+      padding: .4rem .9rem; border: 1.5px solid var(--border); border-radius: 50px;
+      font-size: .8rem; font-weight: 600; cursor: pointer; transition: var(--t);
+    }
+    .crust-option:checked + label { border-color: var(--red); background: var(--red); color: var(--white); }
+    .topping-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
+    .topping-check { display: flex; align-items: center; gap: .5rem; padding: .5rem; border-radius: var(--radius-sm); border: 1px solid var(--border); cursor: pointer; font-size: .82rem; transition: border-color var(--t); }
+    .topping-check:hover { border-color: var(--red); }
+    .topping-check input { accent-color: var(--red); }
+    .price-display { font-size: 2.2rem; font-weight: 900; color: var(--red); }
+    .modal-pizza-img { width: 100%; height: 200px; object-fit: cover; border-radius: var(--radius-sm); margin-bottom: 1rem; }
+    .modal-stars { margin-bottom: 1rem; }
+    .review-item { padding: 1rem 0; border-bottom: 1px solid var(--border); }
+    .review-item:last-child { border-bottom: none; }
+    .review-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .4rem; }
+    .reviewer-name { font-weight: 700; font-size: .9rem; }
+    .review-date { font-size: .75rem; color: var(--text-2); }
+    .review-text { font-size: .85rem; color: var(--text-2); line-height: 1.65; }
+    .related-grid { display: flex; gap: 1rem; overflow-x: auto; padding-bottom: .5rem; }
+    .related-item { min-width: 140px; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; cursor: pointer; flex-shrink: 0; }
+    .related-item img { width: 140px; height: 90px; object-fit: cover; }
+    .related-item p { padding: .4rem .6rem; font-size: .78rem; font-weight: 700; }
+  </style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div class="page-loader" id="pageLoader"><i class="fas fa-pizza-slice"></i><p>Loading Menu...</p></div>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <a href="/" class="nav-logo"><i class="fas fa-pizza-slice"></i> Pizza Palace</a>
+  <ul class="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/menu.html" class="active">Menu</a></li>
+    <li><a href="/tracking.html">Track Order</a></li>
+  </ul>
+  <div class="nav-right">
+    <button class="dark-toggle" id="darkToggle"><i class="fas fa-moon"></i></button>
+    <button class="nav-cart" id="cartBtn" aria-label="Cart">
+      <i class="fas fa-shopping-cart"></i>
+      <span class="nav-cart-badge" id="cartCount" style="display:none">0</span>
+    </button>
+    <a href="/auth.html" class="btn btn-primary btn-sm" id="navLoginBtn"><i class="fas fa-user"></i> Login</a>
+    <div id="navUserMenu" style="display:none;align-items:center;gap:.6rem">
+      <span style="font-size:.85rem;font-weight:600" id="navUserName"></span>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
+    </div>
+    <div class="hamburger" id="hamburger"><span></span><span></span><span></span></div>
+  </div>
+</nav>
+
+<!-- CART SIDEBAR -->
+<div class="cart-overlay" id="cartOverlay"></div>
+<div class="cart-sidebar" id="cartSidebar">
+  <div class="cart-header">
+    <div class="cart-title"><i class="fas fa-shopping-cart" style="color:var(--red)"></i> Your Cart</div>
+    <button class="cart-close" id="cartClose"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="cart-items" id="cartItems"></div>
+  <div class="cart-footer">
+    <div class="cart-summary-row"><span>Subtotal</span><span id="cartSubtotal">RM0.00</span></div>
+    <div class="cart-summary-row"><span style="color:#2d6a4f">Discount</span><span class="discount" id="cartDiscount">RM0.00</span></div>
+    <div class="cart-summary-row"><span>Delivery</span><span id="cartDelivery">RM3.00</span></div>
+    <div class="cart-summary-row total"><span>Total</span><span id="cartTotal">RM3.00</span></div>
+    <button class="btn btn-primary btn-full" style="margin-top:1rem" id="cartCheckout">
+      <i class="fas fa-lock"></i> Checkout
+    </button>
+  </div>
+</div>
+
+<!-- PAGE HEADER -->
+<div class="page-header" style="padding-top:calc(var(--nav-h) + 40px)">
+  <div class="container">
+    <h1 class="page-title">Our Menu 🍕</h1>
+    <p style="color:rgba(255,255,255,.5);margin-top:.5rem">Hand-crafted pizzas baked with passion. Choose your perfect slice.</p>
+  </div>
+</div>
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+  <div class="filter-tabs" id="catTabs">
+    <button class="filter-tab active" data-cat="">All</button>
+    <button class="filter-tab" data-cat="non-veg">🍖 Non-Veg</button>
+    <button class="filter-tab" data-cat="veg">🌿 Veg</button>
+    <button class="filter-tab" data-featured="1">⭐ Featured</button>
+  </div>
+  <div class="search-box">
+    <i class="fas fa-search"></i>
+    <input type="text" id="searchInput" placeholder="Search pizzas..." />
+  </div>
+  <select class="sort-select" id="sortSelect">
+    <option value="">Sort: Default</option>
+    <option value="price_asc">Price: Low → High</option>
+    <option value="price_desc">Price: High → Low</option>
+    <option value="rating">Top Rated</option>
+  </select>
+  <span id="resultCount" style="font-size:.82rem;color:var(--text-2);margin-left:auto"></span>
+</div>
+
+<!-- PIZZA GRID -->
+<section class="section-sm">
+  <div class="container">
+    <div class="pizza-grid" id="pizzaGrid">
+      <!-- skeletons -->
+      ${Array(8).fill('<div class="card" style="height:360px;background:var(--grey-1)"></div>').join('')}
+    </div>
+    <div class="empty-state" id="emptyState" style="display:none">
+      <i class="fas fa-search"></i>
+      <h3>No Pizzas Found</h3>
+      <p>Try a different search or filter.</p>
+      <button class="btn btn-outline" onclick="resetFilters()">Clear Filters</button>
+    </div>
+  </div>
+</section>
+
+<!-- PIZZA DETAIL / CUSTOMIZATION MODAL -->
+<div class="modal-overlay" id="pizzaModal">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <h3 class="modal-title" id="modalTitle">Pizza Name</h3>
+      <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <img class="modal-pizza-img" id="modalImg" src="" alt=""/>
+      <div class="flex-between" style="margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
+        <div class="modal-stars" id="modalStars"></div>
+        <span class="status-badge badge-veg" id="modalCatBadge">Category</span>
+      </div>
+      <p id="modalDesc" style="font-size:.9rem;color:var(--text-2);line-height:1.7;margin-bottom:1.5rem"></p>
+
+      <!-- Size -->
+      <div class="form-group">
+        <label class="form-label">Choose Size</label>
+        <div class="size-options">
+          <div>
+            <input class="size-option" type="radio" name="size" id="szSmall" value="small"/>
+            <label for="szSmall">Small<span class="size-price" id="prSmall">—</span><small style="color:var(--text-2);font-size:.7rem">8"</small></label>
+          </div>
+          <div>
+            <input class="size-option" type="radio" name="size" id="szMedium" value="medium" checked/>
+            <label for="szMedium">Medium<span class="size-price" id="prMedium">—</span><small style="color:var(--text-2);font-size:.7rem">10"</small></label>
+          </div>
+          <div>
+            <input class="size-option" type="radio" name="size" id="szLarge" value="large"/>
+            <label for="szLarge">Large<span class="size-price" id="prLarge">—</span><small style="color:var(--text-2);font-size:.7rem">12"</small></label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Crust -->
+      <div class="form-group">
+        <label class="form-label">Choose Crust</label>
+        <div class="crust-options">
+          <input class="crust-option" type="radio" name="crust" id="crClassic" value="Classic" checked/>
+          <label for="crClassic">Classic</label>
+          <input class="crust-option" type="radio" name="crust" id="crThin" value="Thin"/>
+          <label for="crThin">Thin</label>
+          <input class="crust-option" type="radio" name="crust" id="crThick" value="Thick"/>
+          <label for="crThick">Thick</label>
+          <input class="crust-option" type="radio" name="crust" id="crStuffed" value="Stuffed Cheese"/>
+          <label for="crStuffed">Stuffed Cheese</label>
+          <input class="crust-option" type="radio" name="crust" id="crHerb" value="Herb Butter"/>
+          <label for="crHerb">Herb Butter</label>
+        </div>
+      </div>
+
+      <!-- Toppings -->
+      <div class="form-group">
+        <label class="form-label">Extra Toppings <small style="color:var(--text-2)">(optional)</small></label>
+        <div class="topping-grid">
+          <label class="topping-check"><input type="checkbox" value="Extra Cheese"/> Extra Cheese</label>
+          <label class="topping-check"><input type="checkbox" value="Mushrooms"/> Mushrooms</label>
+          <label class="topping-check"><input type="checkbox" value="Olives"/> Olives</label>
+          <label class="topping-check"><input type="checkbox" value="Jalapeños"/> Jalapeños</label>
+          <label class="topping-check"><input type="checkbox" value="Onions"/> Onions</label>
+          <label class="topping-check"><input type="checkbox" value="Bell Peppers"/> Bell Peppers</label>
+        </div>
+      </div>
+
+      <!-- Qty + Price -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:1.5rem;flex-wrap:wrap;gap:1rem">
+        <div>
+          <div style="font-size:.8rem;color:var(--text-2);margin-bottom:.3rem">Quantity</div>
+          <div class="qty-control">
+            <button class="qty-btn" onclick="changeQty(-1)"><i class="fas fa-minus"></i></button>
+            <span class="qty-num" id="modalQty">1</span>
+            <button class="qty-btn" onclick="changeQty(1)"><i class="fas fa-plus"></i></button>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:.8rem;color:var(--text-2);margin-bottom:.2rem">Total Price</div>
+          <div class="price-display" id="modalPrice">RM0.00</div>
+        </div>
+      </div>
+
+      <!-- Reviews section -->
+      <div style="margin-top:2rem;border-top:1px solid var(--border);padding-top:1.5rem">
+        <h4 style="font-weight:700;margin-bottom:1rem">Customer Reviews</h4>
+        <div id="reviewsList"></div>
+      </div>
+
+      <!-- Related pizzas -->
+      <div style="margin-top:1.5rem;border-top:1px solid var(--border);padding-top:1.5rem">
+        <h4 style="font-weight:700;margin-bottom:1rem">People Also Ordered</h4>
+        <div class="related-grid" id="relatedGrid"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="addToCartBtn" onclick="addCurrentToCart()">
+        <i class="fas fa-plus"></i> Add to Cart — <span id="modalAddPrice">RM0.00</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- CHATBOT -->
+<button class="chatbot-toggle" id="chatbotToggle"><i class="fas fa-comments"></i></button>
+<div class="chatbot-window" id="chatbotWindow">
+  <div class="chatbot-head"><i class="fas fa-robot"></i><div><h5>Pizza Bot</h5><small>Here to help!</small></div></div>
+  <div class="chatbot-messages" id="chatMessages"><div class="bot-msg">👋 Looking for something specific? Ask me!</div></div>
+  <div class="chatbot-input">
+    <input type="text" id="chatInput" placeholder="Ask about our pizzas..."/>
+    <button id="chatSend"><i class="fas fa-paper-plane"></i></button>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="/js/app.js"></script>
+<script src="/js/cart.js"></script>
+<script>
+  window.addEventListener('load', () => setTimeout(() => document.getElementById('pageLoader').classList.add('hidden'), 600));
+
+  let allPizzas = [];
+  let currentPizza = null;
+  let modalQty = 1;
+
+  const filters = { cat: '', featured: 0, search: '', sort: '' };
+
+  // Read URL params
+  const urlP = new URLSearchParams(window.location.search);
+  if (urlP.get('cat'))      filters.cat      = urlP.get('cat');
+  if (urlP.get('featured')) filters.featured = 1;
+
+  // Load pizzas
+  async function loadPizzas() {
+    const grid = document.getElementById('pizzaGrid');
+    // skeleton
+    grid.innerHTML = Array(8).fill('<div class="card" style="height:360px;background:var(--grey-1);animation:pulse 1.5s ease-in-out infinite alternate"></div>').join('');
+
+    try {
+      const params = new URLSearchParams();
+      if (filters.cat)      params.set('category', filters.cat);
+      if (filters.featured) params.set('featured', '1');
+      if (filters.search)   params.set('search', filters.search);
+      if (filters.sort)     params.set('sort', filters.sort);
+      params.set('limit', '50');
+
+      const res  = await fetch(`/api/pizzas?${params}`);
+      const data = await res.json();
+      allPizzas  = data.data || [];
+      renderPizzas(allPizzas);
+    } catch (e) {
+      grid.innerHTML = '<div class="empty-state" style="display:block;grid-column:1/-1"><i class="fas fa-wifi"></i><h3>Backend Offline</h3><p>Start the server with <code>npm start</code> inside the server folder.</p></div>';
+    }
+  }
+
+  function renderPizzas(pizzas) {
+    const grid  = document.getElementById('pizzaGrid');
+    const empty = document.getElementById('emptyState');
+    document.getElementById('resultCount').textContent = `${pizzas.length} pizzas`;
+
+    if (!pizzas.length) { grid.innerHTML = ''; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+
+    grid.innerHTML = pizzas.map(p => `
+      <div class="card pizza-card reveal" onclick="openPizzaModal(${p.id})">
+        <div class="pizza-card-img-wrap">
+          <img class="pizza-card-img" src="${p.image}" alt="${p.name}"
+               onerror="this.src='https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80'"/>
+          <span class="pizza-badge ${p.category === 'veg' ? 'badge-veg' : 'badge-nonveg'}">
+            ${p.category === 'veg' ? '🌿 Veg' : '🍖 Non-Veg'}
+          </span>
+          ${p.is_featured ? '<span class="pizza-badge badge-featured" style="top:10px;right:10px;left:auto">⭐</span>' : ''}
+        </div>
+        <div class="card-body">
+          <div class="pizza-card-name">${p.name}</div>
+          <div class="pizza-card-desc">${p.description}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.8rem">
+            <div class="pizza-card-price">RM ${parseFloat(p.price).toFixed(2)}</div>
+            <div class="stars">${renderStars(p.avg_rating)}<span>(${p.total_reviews || 0})</span></div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <button class="btn btn-primary btn-full btn-sm" onclick="event.stopPropagation();quickAdd(${p.id})">
+            <i class="fas fa-plus"></i> Add to Cart
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+    initReveal();
+  }
+
+  function quickAdd(id) {
+    const p = allPizzas.find(x => x.id === id);
+    if (p) Cart.add(p, 'medium', 'Classic');
+  }
+
+  // Pizza modal
+  async function openPizzaModal(id) {
+    try {
+      const res  = await fetch(`/api/pizzas/${id}`);
+      const data = await res.json();
+      if (!data.success) return;
+
+      currentPizza = data.data;
+      modalQty = 1;
+
+      const p = currentPizza;
+      document.getElementById('modalTitle').textContent   = p.name;
+      document.getElementById('modalImg').src             = p.image;
+      document.getElementById('modalDesc').textContent    = p.description;
+      document.getElementById('modalQty').textContent     = 1;
+      document.getElementById('modalStars').innerHTML     = `<div class="stars">${renderStars(p.avg_rating)}<span style="margin-left:.4rem;font-size:.85rem;color:var(--text-2)">${p.avg_rating} (${p.total_reviews} reviews)</span></div>`;
+      const catBadge = document.getElementById('modalCatBadge');
+      catBadge.textContent = p.category === 'veg' ? '🌿 Veg' : '🍖 Non-Veg';
+      catBadge.className   = `status-badge ${p.category === 'veg' ? 'badge-veg' : 'badge-nonveg'}`;
+
+      // Size prices
+      document.getElementById('prSmall').textContent  = 'RM ' + (parseFloat(p.price) * 0.8).toFixed(2);
+      document.getElementById('prMedium').textContent = 'RM ' + parseFloat(p.price).toFixed(2);
+      document.getElementById('prLarge').textContent  = 'RM ' + (parseFloat(p.price) * 1.3).toFixed(2);
+
+      // Reset form
+      document.getElementById('szMedium').checked = true;
+      document.getElementById('crClassic').checked = true;
+      document.querySelectorAll('.topping-check input').forEach(c => c.checked = false);
+
+      updateModalPrice();
+
+      // Reviews
+      const revList = document.getElementById('reviewsList');
+      if (p.reviews && p.reviews.length) {
+        revList.innerHTML = p.reviews.slice(0, 3).map(r => `
+          <div class="review-item">
+            <div class="review-header">
+              <div class="reviewer-name">${r.user_name}</div>
+              <div style="display:flex;align-items:center;gap:.4rem">
+                <div class="stars">${renderStars(r.rating)}</div>
+                <div class="review-date">${formatDate(r.created_at)}</div>
+              </div>
+            </div>
+            <div class="review-text">${r.comment || ''}</div>
+          </div>
+        `).join('');
+      } else {
+        revList.innerHTML = '<p style="font-size:.85rem;color:var(--text-2)">No reviews yet. Be the first!</p>';
+      }
+
+      // Related
+      const relGrid = document.getElementById('relatedGrid');
+      if (p.related && p.related.length) {
+        relGrid.innerHTML = p.related.map(r => `
+          <div class="related-item" onclick="closeModal();setTimeout(()=>openPizzaModal(${r.id}),200)">
+            <img src="${r.image}" alt="${r.name}" onerror="this.src='https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=200&q=60'"/>
+            <p>${r.name}</p>
+          </div>
+        `).join('');
+      } else {
+        relGrid.innerHTML = '<p style="font-size:.85rem;color:var(--text-2)">Loading recommendations...</p>';
+      }
+
+      // Attach change listeners
+      document.querySelectorAll('input[name="size"], input[name="crust"], .topping-check input')
+        .forEach(i => i.addEventListener('change', updateModalPrice));
+
+      document.getElementById('pizzaModal').classList.add('open');
+    } catch(e) {
+      showToast('Could not load pizza details.', 'error');
+    }
+  }
+
+  function closeModal() {
+    document.getElementById('pizzaModal').classList.remove('open');
+    currentPizza = null;
+  }
+
+  function updateModalPrice() {
+    if (!currentPizza) return;
+    const size     = document.querySelector('input[name="size"]:checked')?.value || 'medium';
+    const mult     = size === 'small' ? 0.8 : size === 'large' ? 1.3 : 1.0;
+    const unitPrice= Math.round(parseFloat(currentPizza.price) * mult * 100) / 100;
+    const total    = (unitPrice * modalQty).toFixed(2);
+    document.getElementById('modalPrice').textContent    = `RM ${total}`;
+    document.getElementById('modalAddPrice').textContent = `RM ${total}`;
+  }
+
+  function changeQty(delta) {
+    modalQty = Math.max(1, modalQty + delta);
+    document.getElementById('modalQty').textContent = modalQty;
+    updateModalPrice();
+  }
+
+  function addCurrentToCart() {
+    if (!currentPizza) return;
+    const size     = document.querySelector('input[name="size"]:checked')?.value || 'medium';
+    const crust    = document.querySelector('input[name="crust"]:checked')?.value || 'Classic';
+    const toppings = [...document.querySelectorAll('.topping-check input:checked')].map(i => i.value);
+
+    const mult     = size === 'small' ? 0.8 : size === 'large' ? 1.3 : 1.0;
+    const price    = Math.round(parseFloat(currentPizza.price) * mult * 100) / 100;
+    const pizza    = { ...currentPizza, price };
+
+    for (let i = 0; i < modalQty; i++) Cart.add(pizza, size, crust, toppings, 1);
+    closeModal();
+  }
+
+  // Filter tabs
+  document.getElementById('catTabs').addEventListener('click', e => {
+    const btn = e.target.closest('.filter-tab');
+    if (!btn) return;
+    document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filters.cat      = btn.dataset.cat || '';
+    filters.featured = btn.dataset.featured ? 1 : 0;
+    loadPizzas();
+  });
+
+  // Search
+  let searchTimer;
+  document.getElementById('searchInput').addEventListener('input', e => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { filters.search = e.target.value.trim(); loadPizzas(); }, 400);
+  });
+
+  // Sort
+  document.getElementById('sortSelect').addEventListener('change', e => {
+    filters.sort = e.target.value; loadPizzas();
+  });
+
+  function resetFilters() {
+    filters.cat = ''; filters.featured = 0; filters.search = ''; filters.sort = '';
+    document.getElementById('searchInput').value = '';
+    document.getElementById('sortSelect').value  = '';
+    document.querySelectorAll('.filter-tab').forEach((b, i) => b.classList.toggle('active', i === 0));
+    loadPizzas();
+  }
+
+  // Apply URL filters
+  if (filters.cat || filters.featured) {
+    if (filters.cat) {
+      document.querySelectorAll('.filter-tab').forEach(b => {
+        b.classList.toggle('active', b.dataset.cat === filters.cat);
+      });
+    }
+  }
+
+  // Close modal on overlay click
+  document.getElementById('pizzaModal').addEventListener('click', e => {
+    if (e.target === document.getElementById('pizzaModal')) closeModal();
+  });
+
+  loadPizzas();
+</script>
+<style>@keyframes pulse{from{opacity:.6}to{opacity:1}}</style>
+</body>
+</html>
